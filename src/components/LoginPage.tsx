@@ -33,7 +33,7 @@ export function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="manager@company.com"
+                placeholder="example@company.com"
                 autoComplete="username"
                 required
               />
@@ -48,7 +48,7 @@ export function LoginPage() {
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="Manager@2024"
+                placeholder="firstname@2024"
                 autoComplete="current-password"
                 required
               />
