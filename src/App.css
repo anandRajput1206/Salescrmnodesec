@@ -182,3 +182,25 @@
     border-right-color: var(--border);
   }
 }
+
+.input-wrap {
+  position: relative; /* if not already set */
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #6b7280; /* match your muted/icon color */
+  display: flex;
+  align-items: center;
+}
+
+.password-toggle-btn:hover {
+  color: #374151;
+}

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Lock, Mail } from 'lucide-react'
+import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 export function LoginPage() {
@@ -7,6 +7,7 @@ export function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [showPassword, setShowPassword] = useState(false) // NEW: toggles password visibility
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -45,13 +46,22 @@ export function LoginPage() {
             <div className="input-wrap">
               <Lock size={16} />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="firstname@2024"
                 autoComplete="current-password"
                 required
               />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </div>
           </label>
 
