@@ -5,17 +5,18 @@ import { KpiCards } from './KpiCards'
 import { SalesTeamCharts } from './charts/SalesTeamCharts'
 import { ManagerCharts } from './charts/ManagerCharts'
 import { useAuth } from '../context/AuthContext'
-import { canViewAllData } from '../lib/auth'
-import { fetchDashboardData, getStorageMode } from '../lib/dataService'
+import { canViewAllData, fetchAllUsers } from '../lib/auth'
+import { fetchDashboardData } from '../lib/dataService'
 import { filterEntries, getDashboardStats, getPeriodOptions, getRegionOptions } from '../lib/chartUtils'
 import { checkDatabaseSetup } from '../lib/supabase'
-import type { DashboardData, DashboardFilters } from '../lib/types'
+import type { DashboardData, DashboardFilters, User } from '../lib/types'
 
 const EMPTY: DashboardData = { entries: [], uploads: [] }
 
 export function DashboardPage() {
   const { user } = useAuth()
   const [data, setData] = useState<DashboardData>(EMPTY)
+  const [teamUsers, setTeamUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [dbStatus, setDbStatus] = useState<{ ok: boolean; message: string } | null>(null)
@@ -23,6 +24,7 @@ export function DashboardPage() {
     timePeriod: 'monthly',
     periodValue: 'all',
     region: 'all',
+    employeeId: 'all',
   })
 
   async function loadData() {
@@ -35,8 +37,14 @@ export function DashboardPage() {
         fetchDashboardData(user),
         checkDatabaseSetup(),
       ])
+
       setData(nextData)
       setDbStatus(setup)
+
+      if (canViewAllData(user)) {
+        const users = await fetchAllUsers()
+        setTeamUsers(users.filter((member) => member.role === 'sales_team'))
+      }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Failed to load dashboard')
     } finally {
@@ -69,11 +77,6 @@ export function DashboardPage() {
         <div>
           <p className="eyebrow">{isManagerView ? 'Manager Analytics' : 'My Performance'}</p>
           <h3>{isManagerView ? 'Team Comparative Dashboard' : 'Personal Sales Dashboard'}</h3>
-          <p className="muted">
-            {getStorageMode() === 'supabase'
-              ? dbStatus?.message ?? 'Supabase connected'
-              : 'Local browser storage'}
-          </p>
         </div>
         <button type="button" className="secondary-btn" onClick={() => void loadData()}>
           <RefreshCw size={16} />
@@ -92,7 +95,9 @@ export function DashboardPage() {
         filters={filters}
         periodOptions={periodOptions}
         regionOptions={regionOptions}
+        teamUsers={teamUsers}
         showRegionFilter={user.role === 'admin'}
+        showEmployeeFilter={isManagerView}
         onChange={setFilters}
       />
 

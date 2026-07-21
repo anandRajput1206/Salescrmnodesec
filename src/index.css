@@ -334,12 +334,16 @@ th {
 }
 
 .login-card {
-  width: min(480px, 100%);
-  padding: 28px;
+  width: min(520px, 100%);
+  padding: 32px;
   border-radius: 20px;
   background: #fff;
   border: 1px solid #e2e8f0;
   box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+}
+
+.login-card-wide {
+  width: min(520px, 100%);
 }
 
 .login-brand {
@@ -349,7 +353,27 @@ th {
   margin-bottom: 24px;
 }
 
-.login-brand h1 { color: #0f172a; font-size: 1.4rem; }
+.login-brand .brand-logo {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: #fff;
+  padding: 4px;
+}
+
+.login-brand h1 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.login-brand p {
+  margin: 6px 0 0;
+  color: #475569;
+  font-size: 0.95rem;
+}
 
 .login-form {
   display: grid;
@@ -360,51 +384,61 @@ th {
   display: grid;
   gap: 8px;
   font-size: 0.92rem;
+  color: #0f172a;
+  font-weight: 500;
 }
 
-.input-wrap {
+.login-form .input-wrap {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 12px;
-  border: 1px solid #cbd5e1;
+  padding: 0 14px;
+  border: 1px solid #e5e7eb;
   border-radius: 12px;
-  background: #fff;
+  background: #eff6ff;
 }
 
-.input-wrap input {
+.login-form .input-wrap input {
   width: 100%;
   border: none;
   outline: none;
-  padding: 12px 0;
+  padding: 14px 0;
   background: transparent;
+  color: #0f172a;
+}
+
+.login-form .input-wrap svg {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.login-form .password-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  padding: 4px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.login-form .password-toggle:hover {
+  color: #0f172a;
+}
+
+.login-form .primary-btn {
+  width: 100%;
+  margin-top: 4px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-weight: 600;
 }
 
 @media (max-width: 900px) {
   .app-shell { grid-template-columns: 1fr; }
   .sidebar { min-height: auto; }
   .charts-grid { grid-template-columns: 1fr; }
-}
-
-
-.input-wrap {
-  position: relative; /* if not already set */
-}
-
-.password-toggle-btn {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  color: #6b7280; /* match your muted/icon color */
-  display: flex;
-  align-items: center;
-}
-
-.password-toggle-btn:hover {
-  color: #374151;
 }

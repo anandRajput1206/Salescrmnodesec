@@ -19,7 +19,21 @@ function normalizeHeader(value: unknown): string {
 }
 
 function findColumnIndex(headers: string[], aliases: string[]): number {
-  return headers.findIndex((header) => aliases.some((alias) => header.includes(alias)))
+  const sortedAliases = [...aliases].sort((a, b) => b.length - a.length)
+
+  // Exact match first
+  for (const alias of sortedAliases) {
+    const exact = headers.findIndex((header) => header === alias)
+    if (exact >= 0) return exact
+  }
+
+  // Then includes (longest alias first to avoid "week" matching wrong columns)
+  for (const alias of sortedAliases) {
+    const partial = headers.findIndex((header) => header.includes(alias))
+    if (partial >= 0) return partial
+  }
+
+  return -1
 }
 
 function cellText(value: unknown): string {
@@ -70,7 +84,7 @@ function parseMatrix(matrix: unknown[][]): { rows: ParsedSalesRow[]; warnings: s
   const headers = (matrix[0] ?? []).map(normalizeHeader)
   const indexes = {
     month: findColumnIndex(headers, ['month']),
-    weekNumber: findColumnIndex(headers, ['week number', 'week']),
+    weekNumber: findColumnIndex(headers, ['week number']),
     date: findColumnIndex(headers, ['date']),
     regionZone: findColumnIndex(headers, ['region/zone', 'region zone', 'region']),
     leadSource: findColumnIndex(headers, ['lead source']),
@@ -81,19 +95,22 @@ function parseMatrix(matrix: unknown[][]): { rows: ParsedSalesRow[]; warnings: s
     opportunityId: findColumnIndex(headers, ['opportunity id']),
     opportunityName: findColumnIndex(headers, ['opportunity name']),
     opportunityType: findColumnIndex(headers, ['opportunity type']),
-    opportunityValueInr: findColumnIndex(headers, ['opportunity value']),
-    probabilityPct: findColumnIndex(headers, ['probability']),
-    weightedPipelineInr: findColumnIndex(headers, ['weighted pipeline']),
-    salesStage: findColumnIndex(headers, ['sales stage', 'stage']),
+    opportunityValueInr: findColumnIndex(headers, ['opportunity value (inr)', 'opportunity value']),
+    probabilityPct: findColumnIndex(headers, ['probability (%)', 'probability']),
+    weightedPipelineInr: findColumnIndex(headers, [
+      'weighted pipeline (inr)',
+      'weighted pipeline',
+    ]),
+    salesStage: findColumnIndex(headers, ['sales stage']),
     status: findColumnIndex(headers, ['status']),
-    meetingsConducted: findColumnIndex(headers, ['meetings conducted', 'meetings']),
-    demosConducted: findColumnIndex(headers, ['demos conducted', 'demos']),
-    pocsInitiated: findColumnIndex(headers, ['pocs initiated', 'poc']),
-    proposalSubmitted: findColumnIndex(headers, ['proposal submitted', 'proposal']),
-    expectedCloseDate: findColumnIndex(headers, ['expected close date', 'close date']),
-    revenueClosedInr: findColumnIndex(headers, ['revenue closed']),
+    meetingsConducted: findColumnIndex(headers, ['meetings conducted']),
+    demosConducted: findColumnIndex(headers, ['demos conducted']),
+    pocsInitiated: findColumnIndex(headers, ['pocs initiated']),
+    proposalSubmitted: findColumnIndex(headers, ['proposal submitted']),
+    expectedCloseDate: findColumnIndex(headers, ['expected close date']),
+    revenueClosedInr: findColumnIndex(headers, ['revenue closed (inr)', 'revenue closed']),
     competitor: findColumnIndex(headers, ['competitor']),
-    partnerName: findColumnIndex(headers, ['partner name', 'partner']),
+    partnerName: findColumnIndex(headers, ['partner name']),
     renewalUpsell: findColumnIndex(headers, ['renewal/upsell', 'renewal']),
     nextAction: findColumnIndex(headers, ['next action']),
     remarks: findColumnIndex(headers, ['remarks', 'remark']),
@@ -124,6 +141,18 @@ function parseMatrix(matrix: unknown[][]): { rows: ParsedSalesRow[]; warnings: s
     const expectedCloseDate =
       indexes.expectedCloseDate >= 0 ? toIsoDate(row[indexes.expectedCloseDate]) : ''
 
+    const opportunityValueInr =
+      indexes.opportunityValueInr >= 0 ? cellNumber(row[indexes.opportunityValueInr]) : 0
+    const probabilityPct =
+      indexes.probabilityPct >= 0 ? cellPercent(row[indexes.probabilityPct]) : 0
+    let weightedPipelineInr =
+      indexes.weightedPipelineInr >= 0 ? cellNumber(row[indexes.weightedPipelineInr]) : 0
+
+    // Auto-calculate weighted pipeline when Excel cell is empty
+    if (!weightedPipelineInr && opportunityValueInr > 0 && probabilityPct > 0) {
+      weightedPipelineInr = (opportunityValueInr * probabilityPct) / 100
+    }
+
     rows.push({
       month,
       weekNumber,
@@ -142,11 +171,9 @@ function parseMatrix(matrix: unknown[][]): { rows: ParsedSalesRow[]; warnings: s
       opportunityId,
       opportunityName: indexes.opportunityName >= 0 ? cellText(row[indexes.opportunityName]) : '',
       opportunityType: indexes.opportunityType >= 0 ? cellText(row[indexes.opportunityType]) : '',
-      opportunityValueInr:
-        indexes.opportunityValueInr >= 0 ? cellNumber(row[indexes.opportunityValueInr]) : 0,
-      probabilityPct: indexes.probabilityPct >= 0 ? cellPercent(row[indexes.probabilityPct]) : 0,
-      weightedPipelineInr:
-        indexes.weightedPipelineInr >= 0 ? cellNumber(row[indexes.weightedPipelineInr]) : 0,
+      opportunityValueInr,
+      probabilityPct,
+      weightedPipelineInr,
       salesStage: indexes.salesStage >= 0 ? cellText(row[indexes.salesStage]) : '',
       status: indexes.status >= 0 ? cellText(row[indexes.status]) : '',
       meetingsConducted:

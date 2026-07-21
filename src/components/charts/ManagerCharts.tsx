@@ -158,7 +158,7 @@ export function ManagerCharts({ entries }: { entries: SalesEntry[] }) {
         )}
       </ChartCard>
 
-      <ChartCard title="Revenue vs Weighted Pipeline" subtitle="Achievement proxy by employee">
+      <ChartCard title="Target vs Achievement" subtitle="Revenue Closed vs Opportunity Value by employee">
         {achievements.length === 0 ? (
           <Empty message="No achievement data" />
         ) : (
@@ -170,7 +170,7 @@ export function ManagerCharts({ entries }: { entries: SalesEntry[] }) {
               <Tooltip formatter={(v) => formatCurrency(Number(v))} />
               <Legend />
               <Bar dataKey="revenue" name="Revenue Closed" fill="#059669" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="target" name="Weighted Pipeline" fill="#2563eb" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="target" name="Opportunity Value" fill="#2563eb" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}

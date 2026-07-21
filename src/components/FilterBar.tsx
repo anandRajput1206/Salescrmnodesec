@@ -1,11 +1,13 @@
-import type { DashboardFilters } from '../lib/types'
+import type { DashboardFilters, User } from '../lib/types'
 import { formatPeriodLabel } from '../lib/chartUtils'
 
 interface FilterBarProps {
   filters: DashboardFilters
   periodOptions: string[]
   regionOptions: string[]
+  teamUsers: User[]
   showRegionFilter: boolean
+  showEmployeeFilter: boolean
   onChange: (filters: DashboardFilters) => void
 }
 
@@ -13,7 +15,9 @@ export function FilterBar({
   filters,
   periodOptions,
   regionOptions,
+  teamUsers,
   showRegionFilter,
+  showEmployeeFilter,
   onChange,
 }: FilterBarProps) {
   return (
@@ -68,6 +72,23 @@ export function FilterBar({
             {regionOptions.map((region) => (
               <option key={region} value={region}>
                 {region}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
+      {showEmployeeFilter ? (
+        <label>
+          <span>Employee</span>
+          <select
+            value={filters.employeeId}
+            onChange={(event) => onChange({ ...filters, employeeId: event.target.value })}
+          >
+            <option value="all">All employees</option>
+            {teamUsers.map((member) => (
+              <option key={member.id} value={member.id}>
+                {member.name}
               </option>
             ))}
           </select>

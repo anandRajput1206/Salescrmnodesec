@@ -1,34 +1,84 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { User } from '../lib/types'
-import { authenticate as verifyLogin, clearSession, loadSession, saveSession } from '../lib/auth'
+import {
+  authenticate as verifyLogin,
+  clearSession,
+  loadSession,
+  refreshSessionUser,
+  saveSession,
+} from '../lib/auth'
+import { isSupabaseConfigured } from '../lib/supabase'
 
 interface AuthContextValue {
   user: User | null
-  login: (email: string, password: string) => string | null
+  login: (email: string, password: string) => Promise<string | null>
   logout: () => void
+  authLoading: boolean
+  sessionChecking: boolean
+  supabaseReady: boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => loadSession())
+  const [user, setUser] = useState<User | null>(null)
+  const [authLoading, setAuthLoading] = useState(false)
+  const [sessionChecking, setSessionChecking] = useState(true)
+
+  useEffect(() => {
+    async function restoreSession() {
+      const sessionUser = loadSession()
+      if (!sessionUser || !isSupabaseConfigured) {
+        setSessionChecking(false)
+        return
+      }
+
+      try {
+        const refreshed = await refreshSessionUser(sessionUser)
+        if (refreshed) {
+          saveSession(refreshed)
+          setUser(refreshed)
+        } else {
+          clearSession()
+        }
+      } catch {
+        clearSession()
+      } finally {
+        setSessionChecking(false)
+      }
+    }
+
+    void restoreSession()
+  }, [])
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      login: (email, password) => {
-        const nextUser = verifyLogin(email, password)
-        if (!nextUser) return 'Invalid email or password'
-        saveSession(nextUser)
-        setUser(nextUser)
-        return null
+      authLoading,
+      sessionChecking,
+      supabaseReady: isSupabaseConfigured,
+      login: async (email, password) => {
+        setAuthLoading(true)
+        try {
+          const nextUser = await verifyLogin(email, password)
+          if (!nextUser) {
+            return 'Invalid email or password.'
+          }
+          saveSession(nextUser)
+          setUser(nextUser)
+          return null
+        } catch (error) {
+          return error instanceof Error ? error.message : 'Login failed'
+        } finally {
+          setAuthLoading(false)
+        }
       },
       logout: () => {
         clearSession()
         setUser(null)
       },
     }),
-    [user],
+    [user, authLoading, sessionChecking],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

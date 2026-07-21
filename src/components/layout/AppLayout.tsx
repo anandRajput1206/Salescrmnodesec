@@ -1,5 +1,5 @@
 import { Download, LayoutDashboard, Upload } from 'lucide-react'
-import { canUpload, canViewAllData } from '../../lib/auth'
+import { canUpload } from '../../lib/auth'
 import { roleLabel } from '../../lib/dateUtils'
 import type { User } from '../../lib/types'
 
@@ -58,11 +58,6 @@ export function AppLayout({ user, view, onViewChange, onLogout, children }: AppL
           <strong>{user.name}</strong>
           <span>{user.email}</span>
           <span className="role-badge">{roleLabel(user.role)}</span>
-          {canViewAllData(user) ? (
-            <span className="scope-note">Viewing all team data</span>
-          ) : (
-            <span className="scope-note">Viewing your data only</span>
-          )}
           <button type="button" className="ghost-btn logout-btn" onClick={onLogout}>
             Logout
           </button>

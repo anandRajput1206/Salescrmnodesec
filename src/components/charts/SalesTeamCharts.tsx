@@ -78,7 +78,7 @@ export function SalesTeamCharts({ entries }: { entries: SalesEntry[] }) {
         )}
       </ChartCard>
 
-      <ChartCard title="Sales Funnel" subtitle="Meetings → Demo → POC → Proposal → Won">
+      <ChartCard title="Sales Funnel" subtitle="Lead → Demo → POC → Proposal → Won">
         {funnel.every((item: { count: number }) => item.count === 0) ? (
           <Empty message="No funnel data" />
         ) : (

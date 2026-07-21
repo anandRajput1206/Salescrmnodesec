@@ -30,12 +30,21 @@ export function parseMonthLabel(value: string): string {
   const text = value.trim().toLowerCase()
   if (!text) return ''
 
-  for (const [name, num] of Object.entries(MONTH_MAP)) {
+  // Prefer longer names first so "january" wins over "jan"
+  const entries = Object.entries(MONTH_MAP).sort((a, b) => b[0].length - a[0].length)
+
+  for (const [name, num] of entries) {
     if (text.includes(name)) {
       const yearMatch = text.match(/\d{4}/)
       const year = yearMatch ? yearMatch[0] : String(new Date().getFullYear())
       return `${year}-${num}`
     }
+  }
+
+  // Also support YYYY-MM
+  const isoMonth = text.match(/^(\d{4})-(\d{1,2})$/)
+  if (isoMonth) {
+    return `${isoMonth[1]}-${isoMonth[2].padStart(2, '0')}`
   }
 
   return ''

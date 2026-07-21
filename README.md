@@ -1,71 +1,54 @@
 # CyberSecurity Sales CRM
 
-Professional role-based sales analytics dashboard built with React, Supabase, and Recharts.
+React + Vite + Supabase PostgreSQL sales analytics dashboard.
 
-## Roles
+## Production checklist
 
-| Role | Email | Password | Access |
-|------|-------|----------|--------|
-| Admin | admin@company.com | Admin@2024 | All regions + team comparison charts |
-| Manager | manager@company.com | Manager@2024 | All team data + comparison charts |
-| Sales Team | rahul.sharma@company.com | Rahul@2024 | Upload + own dashboard only |
+1. **Supabase**
+   - Run `supabase/schema.sql` in SQL Editor (creates `users`, `uploads`, `sales_entries`)
+   - Add users in Supabase Table Editor (`admin` / `manager` / `sales_team`)
+   - Optionally run `supabase/fix_users.sql` to trim dirty IDs
 
-Other sales users: priya.nair, amit.patel, kavita.singh, rohan.mehta @company.com with `FirstName@2024`
+2. **Environment (local + Vercel)**
+   ```env
+   VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+   VITE_SUPABASE_PUBLISHABLE_KEY=YOUR_KEY
+   ```
+   - Never commit `.env` (already in `.gitignore`)
+
+3. **Vercel deploy**
+   - Framework: Vite
+   - Add the two env vars above
+   - Deploy — `vercel.json` SPA rewrite is included
+
+4. **Verify after deploy**
+   - Login with a DB user
+   - Upload template from sidebar
+   - Sales user sees own charts
+   - Manager/Admin sees team comparison charts
+   - Filters: Weekly / Monthly / Quarterly work
 
 ## Excel template
 
-Download from the app sidebar or use:
-`public/CyberSecurity_Sales_Template_With_Validation.xlsx`
+- Download from app sidebar: `CyberSecurity_Sales_Template_With_Validation.xlsx`
+- Sheet: **Sales_Data_Entry**
+- Weighted Pipeline auto-fills as `Opportunity Value × Probability %` when blank
 
-Sheet: **Sales_Data_Entry** with 28 columns (Month, Week Number, Date, Region/Zone, Lead Source, etc.)
+## Calculations
 
-Supports `.xlsx`, `.xls`, and `.csv`.
+| Metric | Formula |
+|--------|---------|
+| Pipeline Value | Sum of Opportunity Value (INR) |
+| Weighted Pipeline | Sum of Weighted Pipeline (or Value × Probability / 100) |
+| Revenue Closed | Sum of Revenue Closed (INR) |
+| Win Rate | Won opportunities ÷ Total opportunities × 100 |
+| Won | Status/Stage contains "won" (excludes "lost") |
+| POC Conversion | POCs Initiated ÷ Demos Conducted × 100 |
+| Sales Funnel | Lead (rows) → Demo → POC → Proposal → Won |
+| Target vs Achievement | Revenue Closed vs Opportunity Value by employee |
 
-## Features
+## Roles (from Supabase `users.role`)
 
-- Role-based login (Admin, Manager, Sales Team)
-- Upload page for sales team
-- Manager/Admin comparative analytics across all employees
-- Sales team personal charts (6 charts)
-- Manager comparison charts (8 charts)
-- Weekly / Monthly / Quarterly filters
-- Admin region filter
-- KPI cards with totals (meetings, pipeline, revenue, win rate)
-- Template download
-- Supabase cloud storage
-
-## Setup
-
-```bash
-npm install
-npm run dev
-```
-
-### Supabase
-
-1. Run `supabase/schema.sql` in Supabase SQL Editor
-2. Add to `.env`:
-
-```env
-VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=YOUR_KEY
-```
-
-3. Restart dev server
-
-## Deploy to Vercel
-
-1. Push to GitHub
-2. Import in Vercel (Vite)
-3. Add env variables
-4. Deploy
-
-## Flow
-
-```
-Login → Dashboard (role-based charts)
-      → Upload (sales team uploads Excel/CSV)
-      → Download Template
-```
-
-Sales team sees only their data. Manager and Admin see consolidated team comparison.
+- **sales_team** — upload + own dashboard
+- **manager** — all team data + comparison charts
+- **admin** — same as manager + region filter

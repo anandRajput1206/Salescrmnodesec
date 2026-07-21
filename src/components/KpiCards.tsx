@@ -28,6 +28,14 @@ export function KpiCards({ stats }: { stats: DashboardStats }) {
         <span>Win Rate</span>
         <strong>{formatPercent(stats.winRate)}</strong>
       </article>
+      <article className="stat-card">
+        <span>POC Conversion</span>
+        <strong>{formatPercent(stats.pocConversionRate)}</strong>
+      </article>
+      <article className="stat-card">
+        <span>Proposals Submitted</span>
+        <strong>{stats.totalProposals}</strong>
+      </article>
     </section>
   )
 }

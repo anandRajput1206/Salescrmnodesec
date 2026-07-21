@@ -1,31 +1,25 @@
 import type { DashboardData, ParsedSalesRow, SalesEntry, UploadMeta, User } from './types'
 import { isSupabaseConfigured, supabase } from './supabase'
 
-const ENTRIES_KEY = 'crm-sales-entries'
-const UPLOADS_KEY = 'crm-uploads'
+const INSERT_BATCH_SIZE = 100
+
+function requireSupabase() {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error(
+      'Supabase is required. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in .env and restart the app.',
+    )
+  }
+  return supabase
+}
 
 function createId(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`
 }
 
-function readLocal<T>(key: string): T[] {
-  const raw = localStorage.getItem(key)
-  if (!raw) return []
-  try {
-    return JSON.parse(raw) as T[]
-  } catch {
-    return []
-  }
-}
-
-function writeLocal<T>(key: string, value: T[]): void {
-  localStorage.setItem(key, JSON.stringify(value))
-}
-
 function mapEntry(row: Record<string, unknown>): SalesEntry {
   return {
     id: String(row.id),
-    userId: String(row.user_id ?? row.userId),
+    userId: String(row.user_id ?? row.userId).trim(),
     userName: String(row.user_name ?? row.userName),
     uploadId: String(row.upload_id ?? row.uploadId),
     uploadedAt: String(row.uploaded_at ?? row.uploadedAt),
@@ -76,7 +70,7 @@ function mapEntry(row: Record<string, unknown>): SalesEntry {
 function mapUpload(row: Record<string, unknown>): UploadMeta {
   return {
     id: String(row.id),
-    userId: String(row.user_id ?? row.userId),
+    userId: String(row.user_id ?? row.userId).trim(),
     userName: String(row.user_name ?? row.userName),
     fileName: String(row.file_name ?? row.fileName),
     rowCount: Number(row.row_count ?? row.rowCount ?? 0),
@@ -90,9 +84,11 @@ function toEntries(
   uploadId: string,
   uploadedAt: string,
 ): SalesEntry[] {
+  const userId = user.id.trim()
+
   return rows.map((row) => ({
     id: createId('entry'),
-    userId: user.id,
+    userId,
     userName: user.name,
     uploadId,
     uploadedAt,
@@ -134,52 +130,111 @@ function toEntries(
   }))
 }
 
-async function deleteUserData(userId: string): Promise<void> {
-  if (isSupabaseConfigured && supabase) {
-    await supabase.from('sales_entries').delete().eq('user_id', userId)
-    await supabase.from('uploads').delete().eq('user_id', userId)
-    return
+function entryToDbRow(row: SalesEntry) {
+  return {
+    id: row.id,
+    user_id: row.userId.trim(),
+    user_name: row.userName,
+    upload_id: row.uploadId,
+    uploaded_at: row.uploadedAt,
+    month: row.month,
+    week_number: row.weekNumber,
+    date: row.date || null,
+    month_key: row.monthKey,
+    quarter: row.quarter,
+    week_key: row.weekKey,
+    region: row.region,
+    zone: row.zone,
+    region_zone: row.regionZone,
+    lead_source: row.leadSource,
+    customer_name: row.customerName,
+    industry: row.industry,
+    contact_person: row.contactPerson,
+    designation: row.designation,
+    opportunity_id: row.opportunityId,
+    opportunity_name: row.opportunityName,
+    opportunity_type: row.opportunityType,
+    opportunity_value_inr: row.opportunityValueInr,
+    probability_pct: row.probabilityPct,
+    weighted_pipeline_inr: row.weightedPipelineInr,
+    sales_stage: row.salesStage,
+    status: row.status,
+    meetings_conducted: row.meetingsConducted,
+    demos_conducted: row.demosConducted,
+    pocs_initiated: row.pocsInitiated,
+    proposal_submitted: row.proposalSubmitted,
+    expected_close_date: row.expectedCloseDate || null,
+    expected_close_month_key: row.expectedCloseMonthKey,
+    expected_close_quarter: row.expectedCloseQuarter,
+    revenue_closed_inr: row.revenueClosedInr,
+    competitor: row.competitor,
+    partner_name: row.partnerName,
+    renewal_upsell: row.renewalUpsell,
+    next_action: row.nextAction,
+    remarks: row.remarks,
   }
+}
 
-  writeLocal(
-    ENTRIES_KEY,
-    readLocal<SalesEntry>(ENTRIES_KEY).filter((row) => row.userId !== userId),
-  )
-  writeLocal(
-    UPLOADS_KEY,
-    readLocal<UploadMeta>(UPLOADS_KEY).filter((row) => row.userId !== userId),
-  )
+async function verifyUserInDatabase(user: User): Promise<void> {
+  const db = requireSupabase()
+  const userId = user.id.trim()
+
+  const { data, error } = await db.from('users').select('id').eq('id', userId).maybeSingle()
+
+  if (error) throw new Error(`Could not verify user: ${error.message}`)
+  if (!data) {
+    throw new Error(
+      `User "${user.email}" not found in database. Add this user in Supabase users table.`,
+    )
+  }
+}
+
+async function deleteUserData(userId: string): Promise<void> {
+  const db = requireSupabase()
+  const trimmedId = userId.trim()
+
+  const { error: entriesError } = await db
+    .from('sales_entries')
+    .delete()
+    .eq('user_id', trimmedId)
+  if (entriesError) throw new Error(`Delete sales_entries failed: ${entriesError.message}`)
+
+  const { error: uploadsError } = await db.from('uploads').delete().eq('user_id', trimmedId)
+  if (uploadsError) throw new Error(`Delete uploads failed: ${uploadsError.message}`)
+}
+
+async function insertEntriesInBatches(entries: SalesEntry[]): Promise<void> {
+  const db = requireSupabase()
+  if (entries.length === 0) return
+
+  for (let i = 0; i < entries.length; i += INSERT_BATCH_SIZE) {
+    const batch = entries.slice(i, i + INSERT_BATCH_SIZE).map(entryToDbRow)
+    const { error } = await db.from('sales_entries').insert(batch)
+    if (error) throw new Error(`Insert sales_entries failed: ${error.message}`)
+  }
 }
 
 export async function fetchDashboardData(user: User): Promise<DashboardData> {
+  const db = requireSupabase()
   const canViewAll = user.role === 'admin' || user.role === 'manager'
+  const userId = user.id.trim()
 
-  if (isSupabaseConfigured && supabase) {
-    let entriesQuery = supabase.from('sales_entries').select('*').order('date', { ascending: true })
-    let uploadsQuery = supabase.from('uploads').select('*').order('uploaded_at', { ascending: false })
+  let entriesQuery = db.from('sales_entries').select('*').order('uploaded_at', { ascending: false })
+  let uploadsQuery = db.from('uploads').select('*').order('uploaded_at', { ascending: false })
 
-    if (!canViewAll) {
-      entriesQuery = entriesQuery.eq('user_id', user.id)
-      uploadsQuery = uploadsQuery.eq('user_id', user.id)
-    }
-
-    const [entriesRes, uploadsRes] = await Promise.all([entriesQuery, uploadsQuery])
-
-    if (entriesRes.error) throw new Error(entriesRes.error.message)
-    if (uploadsRes.error) throw new Error(uploadsRes.error.message)
-
-    return {
-      entries: (entriesRes.data ?? []).map((row) => mapEntry(row as Record<string, unknown>)),
-      uploads: (uploadsRes.data ?? []).map((row) => mapUpload(row as Record<string, unknown>)),
-    }
+  if (!canViewAll) {
+    entriesQuery = entriesQuery.eq('user_id', userId)
+    uploadsQuery = uploadsQuery.eq('user_id', userId)
   }
 
-  const allEntries = readLocal<SalesEntry>(ENTRIES_KEY)
-  const allUploads = readLocal<UploadMeta>(UPLOADS_KEY)
+  const [entriesRes, uploadsRes] = await Promise.all([entriesQuery, uploadsQuery])
+
+  if (entriesRes.error) throw new Error(`Fetch sales_entries failed: ${entriesRes.error.message}`)
+  if (uploadsRes.error) throw new Error(`Fetch uploads failed: ${uploadsRes.error.message}`)
 
   return {
-    entries: canViewAll ? allEntries : allEntries.filter((row) => row.userId === user.id),
-    uploads: canViewAll ? allUploads : allUploads.filter((row) => row.userId === user.id),
+    entries: (entriesRes.data ?? []).map((row) => mapEntry(row as Record<string, unknown>)),
+    uploads: (uploadsRes.data ?? []).map((row) => mapUpload(row as Record<string, unknown>)),
   }
 }
 
@@ -188,90 +243,41 @@ export async function saveUpload(
   fileName: string,
   rows: ParsedSalesRow[],
 ): Promise<UploadMeta> {
+  const db = requireSupabase()
   const uploadedAt = new Date().toISOString()
   const uploadId = createId('upload')
   const entries = toEntries(rows, user, uploadId, uploadedAt)
+  const userId = user.id.trim()
 
   const upload: UploadMeta = {
     id: uploadId,
-    userId: user.id,
+    userId,
     userName: user.name,
     fileName,
     rowCount: entries.length,
     uploadedAt,
   }
 
-  await deleteUserData(user.id)
+  await deleteUserData(userId)
+  await verifyUserInDatabase(user)
 
-  if (isSupabaseConfigured && supabase) {
-    const { error: uploadError } = await supabase.from('uploads').insert({
-      id: upload.id,
-      user_id: upload.userId,
-      user_name: upload.userName,
-      file_name: upload.fileName,
-      row_count: upload.rowCount,
-      uploaded_at: upload.uploadedAt,
-    })
-    if (uploadError) throw new Error(uploadError.message)
+  const { error: uploadError } = await db.from('uploads').insert({
+    id: upload.id,
+    user_id: upload.userId,
+    user_name: upload.userName,
+    file_name: upload.fileName,
+    row_count: upload.rowCount,
+    uploaded_at: upload.uploadedAt,
+  })
 
-    if (entries.length > 0) {
-      const { error } = await supabase.from('sales_entries').insert(
-        entries.map((row) => ({
-          id: row.id,
-          user_id: row.userId,
-          user_name: row.userName,
-          upload_id: row.uploadId,
-          uploaded_at: row.uploadedAt,
-          month: row.month,
-          week_number: row.weekNumber,
-          date: row.date || null,
-          month_key: row.monthKey,
-          quarter: row.quarter,
-          week_key: row.weekKey,
-          region: row.region,
-          zone: row.zone,
-          region_zone: row.regionZone,
-          lead_source: row.leadSource,
-          customer_name: row.customerName,
-          industry: row.industry,
-          contact_person: row.contactPerson,
-          designation: row.designation,
-          opportunity_id: row.opportunityId,
-          opportunity_name: row.opportunityName,
-          opportunity_type: row.opportunityType,
-          opportunity_value_inr: row.opportunityValueInr,
-          probability_pct: row.probabilityPct,
-          weighted_pipeline_inr: row.weightedPipelineInr,
-          sales_stage: row.salesStage,
-          status: row.status,
-          meetings_conducted: row.meetingsConducted,
-          demos_conducted: row.demosConducted,
-          pocs_initiated: row.pocsInitiated,
-          proposal_submitted: row.proposalSubmitted,
-          expected_close_date: row.expectedCloseDate || null,
-          expected_close_month_key: row.expectedCloseMonthKey,
-          expected_close_quarter: row.expectedCloseQuarter,
-          revenue_closed_inr: row.revenueClosedInr,
-          competitor: row.competitor,
-          partner_name: row.partnerName,
-          renewal_upsell: row.renewalUpsell,
-          next_action: row.nextAction,
-          remarks: row.remarks,
-        })),
-      )
-      if (error) throw new Error(error.message)
-    }
-
-    return upload
+  if (uploadError) {
+    throw new Error(
+      uploadError.code === '23503'
+        ? `Upload failed: user "${user.email}" not linked in users table.`
+        : `Upload failed: ${uploadError.message}`,
+    )
   }
 
-  const otherEntries = readLocal<SalesEntry>(ENTRIES_KEY).filter((row) => row.userId !== user.id)
-  const otherUploads = readLocal<UploadMeta>(UPLOADS_KEY).filter((row) => row.userId !== user.id)
-  writeLocal(ENTRIES_KEY, [...otherEntries, ...entries])
-  writeLocal(UPLOADS_KEY, [upload, ...otherUploads])
+  await insertEntriesInBatches(entries)
   return upload
-}
-
-export function getStorageMode(): 'supabase' | 'local' {
-  return isSupabaseConfigured ? 'supabase' : 'local'
 }
