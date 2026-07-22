@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
+﻿import { useEffect, useMemo, useState } from 'react'
+import { RefreshCw, X } from 'lucide-react'
 import { FilterBar } from './FilterBar'
 import { KpiCards } from './KpiCards'
 import { SalesTeamCharts } from './charts/SalesTeamCharts'
@@ -19,7 +19,7 @@ export function DashboardPage() {
   const [teamUsers, setTeamUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [dbStatus, setDbStatus] = useState<{ ok: boolean; message: string } | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
   const [filters, setFilters] = useState<DashboardFilters>({
     timePeriod: 'monthly',
     periodValue: 'all',
@@ -39,14 +39,16 @@ export function DashboardPage() {
       ])
 
       setData(nextData)
-      setDbStatus(setup)
+      if (!setup.ok) setToast(setup.message)
 
       if (canViewAllData(user)) {
         const users = await fetchAllUsers()
         setTeamUsers(users.filter((member) => member.role === 'sales_team'))
       }
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load dashboard')
+      const message = loadError instanceof Error ? loadError.message : 'Failed to load dashboard'
+      setError(message)
+      setToast(message)
     } finally {
       setLoading(false)
     }
@@ -55,6 +57,12 @@ export function DashboardPage() {
   useEffect(() => {
     void loadData()
   }, [user?.id])
+
+  useEffect(() => {
+    if (!toast) return
+    const timer = window.setTimeout(() => setToast(null), 6000)
+    return () => window.clearTimeout(timer)
+  }, [toast])
 
   const filteredEntries = useMemo(
     () => filterEntries(data.entries, filters),
@@ -73,6 +81,18 @@ export function DashboardPage() {
 
   return (
     <div className="page-shell">
+      {toast ? (
+        <div className="app-toast app-toast-error" role="status">
+          <div>
+            <strong>Connection issue</strong>
+            <p>{toast}</p>
+          </div>
+          <button type="button" className="app-toast-close" onClick={() => setToast(null)} aria-label="Dismiss">
+            <X size={16} />
+          </button>
+        </div>
+      ) : null}
+
       <header className="page-header">
         <div>
           <p className="eyebrow">{isManagerView ? 'Manager Analytics' : 'My Performance'}</p>
@@ -83,13 +103,6 @@ export function DashboardPage() {
           Refresh
         </button>
       </header>
-
-      {dbStatus && !dbStatus.ok ? (
-        <div className="setup-banner">
-          <strong>Database setup required</strong>
-          <p>{dbStatus.message}</p>
-        </div>
-      ) : null}
 
       <FilterBar
         filters={filters}

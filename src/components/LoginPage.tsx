@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Eye, EyeOff, Lock, Mail, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 export function LoginPage() {
@@ -8,12 +8,40 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const [toast, setToast] = useState<{ type: 'error' | 'info'; message: string } | null>(null)
+
+  useEffect(() => {
+    if (!sessionChecking && !supabaseReady) {
+      setToast({
+        type: 'error',
+        message: 'Database connection missing. Add Production env vars in Vercel and Redeploy.',
+      })
+    }
+  }, [sessionChecking, supabaseReady])
+
+  useEffect(() => {
+    if (!toast) return
+    const timer = window.setTimeout(() => setToast(null), 6000)
+    return () => window.clearTimeout(timer)
+  }, [toast])
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     setError('')
+
+    if (!supabaseReady) {
+      setToast({
+        type: 'error',
+        message: 'Supabase is not connected. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY for Production, then Redeploy.',
+      })
+      return
+    }
+
     const message = await login(email, password)
-    if (message) setError(message)
+    if (message) {
+      setError(message)
+      setToast({ type: 'error', message })
+    }
   }
 
   if (sessionChecking) {
@@ -28,6 +56,18 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
+      {toast ? (
+        <div className={`app-toast app-toast-${toast.type}`} role="status">
+          <div>
+            <strong>{toast.type === 'error' ? 'Connection issue' : 'Notice'}</strong>
+            <p>{toast.message}</p>
+          </div>
+          <button type="button" className="app-toast-close" onClick={() => setToast(null)} aria-label="Dismiss">
+            <X size={16} />
+          </button>
+        </div>
+      ) : null}
+
       <div className="login-card login-card-wide">
         <div className="login-brand">
           <img src="/logo.png" alt="Nodesec logo" className="brand-logo" />
@@ -36,13 +76,6 @@ export function LoginPage() {
             <p>Streamline Your Sales Process with Confidence</p>
           </div>
         </div>
-
-        {!supabaseReady ? (
-          <div className="setup-banner">
-            <strong>Supabase not configured</strong>
-            <p>Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in Vercel / .env and redeploy.</p>
-          </div>
-        ) : null}
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label>
@@ -56,7 +89,6 @@ export function LoginPage() {
                 placeholder="Enter your email"
                 autoComplete="username"
                 required
-                disabled={!supabaseReady}
               />
             </div>
           </label>
@@ -72,7 +104,6 @@ export function LoginPage() {
                 placeholder="Enter your password"
                 autoComplete="current-password"
                 required
-                disabled={!supabaseReady}
               />
               <button
                 type="button"
@@ -87,7 +118,7 @@ export function LoginPage() {
 
           {error ? <p className="error-text">{error}</p> : null}
 
-          <button type="submit" className="primary-btn" disabled={authLoading || !supabaseReady}>
+          <button type="submit" className="primary-btn" disabled={authLoading}>
             {authLoading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>

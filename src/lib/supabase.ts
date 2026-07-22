@@ -1,9 +1,11 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseKey =
+const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL ?? '').trim()
+const supabaseKey = String(
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-  import.meta.env.VITE_SUPABASE_ANON_KEY
+    import.meta.env.VITE_SUPABASE_ANON_KEY ||
+    '',
+).trim()
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey)
 
@@ -15,7 +17,8 @@ export async function checkDatabaseSetup(): Promise<{ ok: boolean; message: stri
   if (!isSupabaseConfigured || !supabase) {
     return {
       ok: false,
-      message: 'Supabase not configured. Add env variables and restart.',
+      message:
+        'Database not connected. In Vercel, set env vars for Production (not only Development) and Redeploy.',
     }
   }
 
@@ -48,5 +51,5 @@ export async function checkDatabaseSetup(): Promise<{ ok: boolean; message: stri
     }
   }
 
-  return { ok: true, message: 'Live data from Supabase PostgreSQL' }
+  return { ok: true, message: 'Connected' }
 }
