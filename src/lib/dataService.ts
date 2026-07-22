@@ -238,6 +238,37 @@ async function insertEntriesInBatches(entries: SalesEntry[]): Promise<void> {
   }
 }
 
+async function rollbackFailedUpload(
+  userId: string,
+  uploadId: string,
+  previousLatestId: string | null,
+): Promise<void> {
+  const db = requireSupabase()
+
+  await db.from('uploads').delete().eq('id', uploadId)
+
+  if (previousLatestId) {
+    await db.from('uploads').update({ status: 'latest' }).eq('id', previousLatestId)
+    return
+  }
+
+  const remaining = await fetchUserUploads(userId)
+  const toRestore = remaining
+    .filter((upload) => upload.status === 'previous')
+    .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0]
+
+  if (toRestore) {
+    await db.from('uploads').update({ status: 'latest' }).eq('id', toRestore.id)
+  }
+}
+
+function isDuplicateContent(existingUploads: UploadMeta[], contentHash: string): boolean {
+  if (!contentHash) return false
+  return existingUploads.some(
+    (upload) => upload.contentHash && upload.contentHash === contentHash,
+  )
+}
+
 /** One active upload per user — the real sheet that drives dashboard charts. */
 export function getActiveUploadByUser(uploads: UploadMeta[]): Map<string, UploadMeta> {
   const grouped = new Map<string, UploadMeta[]>()
@@ -255,9 +286,9 @@ export function getActiveUploadByUser(uploads: UploadMeta[]): Map<string, Upload
       (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime(),
     )
 
-    const latestMarked = sorted.find((upload) => upload.status === 'latest')
-    if (latestMarked) {
-      activeByUser.set(userId, latestMarked)
+    const latestMarked = sorted.filter((upload) => upload.status === 'latest')
+    if (latestMarked.length > 0) {
+      activeByUser.set(userId, latestMarked[0])
       continue
     }
 
@@ -321,7 +352,9 @@ export async function saveUpload(
   await verifyUserInDatabase(user)
 
   const existingUploads = await fetchUserUploads(userId)
-  const isDuplicate = existingUploads.some((upload) => upload.contentHash === contentHash)
+  const previousLatest = existingUploads.find((upload) => upload.status === 'latest')
+  const previousLatestId = previousLatest?.id ?? null
+  const isDuplicate = isDuplicateContent(existingUploads, contentHash)
   const status: UploadStatus = isDuplicate ? 'duplicate' : 'latest'
 
   const upload: UploadMeta = {
@@ -371,7 +404,12 @@ export async function saveUpload(
   }
 
   if (!isDuplicate) {
-    await insertEntriesInBatches(entries)
+    try {
+      await insertEntriesInBatches(entries)
+    } catch (insertError) {
+      await rollbackFailedUpload(userId, uploadId, previousLatestId)
+      throw insertError instanceof Error ? insertError : new Error('Insert sales_entries failed')
+    }
   }
 
   return {

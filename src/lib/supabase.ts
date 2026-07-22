@@ -22,15 +22,27 @@ export async function checkDatabaseSetup(): Promise<{ ok: boolean; message: stri
     }
   }
 
-  const [entriesCheck, usersCheck] = await Promise.all([
+  const [entriesCheck, usersCheck, uploadsCheck] = await Promise.all([
     supabase.from('sales_entries').select('id').limit(1),
     supabase.from('users').select('id').limit(1),
+    supabase.from('uploads').select('status, content_hash').limit(1),
   ])
 
-  if (entriesCheck.error?.code === 'PGRST205' || usersCheck.error?.code === 'PGRST205') {
+  if (
+    entriesCheck.error?.code === 'PGRST205' ||
+    usersCheck.error?.code === 'PGRST205' ||
+    uploadsCheck.error?.code === 'PGRST205'
+  ) {
     return {
       ok: false,
       message: 'Tables missing. Run supabase/schema.sql in Supabase SQL Editor.',
+    }
+  }
+
+  if (uploadsCheck.error?.message?.includes('content_hash') || uploadsCheck.error?.message?.includes('status')) {
+    return {
+      ok: false,
+      message: 'Upload columns missing. Run supabase/add_upload_status.sql in Supabase SQL Editor.',
     }
   }
 
@@ -40,6 +52,10 @@ export async function checkDatabaseSetup(): Promise<{ ok: boolean; message: stri
 
   if (usersCheck.error) {
     return { ok: false, message: usersCheck.error.message }
+  }
+
+  if (uploadsCheck.error) {
+    return { ok: false, message: uploadsCheck.error.message }
   }
 
   const { count } = await supabase.from('users').select('*', { count: 'exact', head: true })

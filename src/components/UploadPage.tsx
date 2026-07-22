@@ -89,7 +89,7 @@ export function UploadPage({ user, onSuccess }: UploadPageProps) {
       const result = await saveUpload(user, fileName, parsedRows)
       setToast({
         title: result.isDuplicate ? 'Duplicate sheet' : 'Upload saved',
-        type: result.isDuplicate ? 'error' : 'info',
+        type: 'info',
         message: result.message,
       })
 

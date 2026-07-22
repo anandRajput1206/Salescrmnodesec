@@ -101,7 +101,7 @@ export function clearSession(): void {
 }
 
 export function canUpload(user: User): boolean {
-  return user.role === 'sales_team' || user.role === 'manager' || user.role === 'admin'
+  return user.role === 'sales_team'
 }
 
 export function canViewAllData(user: User): boolean {

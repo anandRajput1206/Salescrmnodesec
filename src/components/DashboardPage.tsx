@@ -81,13 +81,25 @@ export function DashboardPage() {
   const regionOptions = useMemo(() => getRegionOptions(data.entries), [data.entries])
   const stats = useMemo(() => getDashboardStats(filteredEntries), [filteredEntries])
   const activeUploads = useMemo(() => getActiveUploadByUser(data.uploads), [data.uploads])
-  const userRegionById = useMemo(() => {
+
+  const employeeRegionById = useMemo(() => {
     const map = new Map<string, string>()
-    for (const member of teamUsers) {
-      if (member.region) map.set(member.id, member.region)
+
+    for (const [userId, upload] of activeUploads) {
+      const region = data.entries.find(
+        (entry) => entry.userId === userId && entry.uploadId === upload.id,
+      )?.region
+      if (region) map.set(userId, region)
     }
+
+    for (const member of teamUsers) {
+      if (!map.has(member.id) && member.region) {
+        map.set(member.id, member.region)
+      }
+    }
+
     return map
-  }, [teamUsers])
+  }, [activeUploads, data.entries, teamUsers])
 
   const historyUploads = useMemo(() => {
     if (!user || !canViewAllData(user)) return data.uploads
@@ -98,10 +110,10 @@ export function DashboardPage() {
       if (!employeeMatch) return false
 
       if (filters.region === 'all') return true
-      const region = userRegionById.get(upload.userId) ?? ''
+      const region = employeeRegionById.get(upload.userId) ?? ''
       return region.toLowerCase() === filters.region.toLowerCase()
     })
-  }, [data.uploads, filters.employeeId, filters.region, user, userRegionById])
+  }, [data.uploads, employeeRegionById, filters.employeeId, filters.region, user])
 
   if (!user) return null
 
@@ -221,7 +233,7 @@ export function DashboardPage() {
                 {historyUploads.map((upload) => (
                   <tr key={upload.id}>
                     {isManagerView ? <td>{upload.userName}</td> : null}
-                    {isManagerView ? <td>{userRegionById.get(upload.userId) || '—'}</td> : null}
+                    {isManagerView ? <td>{employeeRegionById.get(upload.userId) || '—'}</td> : null}
                     <td>{upload.fileName}</td>
                     <td>{upload.rowCount}</td>
                     <td>
