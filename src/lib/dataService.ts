@@ -248,6 +248,48 @@ async function insertEntriesInBatches(entries: SalesEntry[]): Promise<void> {
   }
 }
 
+/** One active upload per user — the real sheet that drives dashboard charts. */
+export function getActiveUploadByUser(uploads: UploadMeta[]): Map<string, UploadMeta> {
+  const grouped = new Map<string, UploadMeta[]>()
+
+  for (const upload of uploads) {
+    const list = grouped.get(upload.userId) ?? []
+    list.push(upload)
+    grouped.set(upload.userId, list)
+  }
+
+  const activeByUser = new Map<string, UploadMeta>()
+
+  for (const [userId, userUploads] of grouped) {
+    const sorted = [...userUploads].sort(
+      (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime(),
+    )
+
+    const latestMarked = sorted.find((upload) => upload.status === 'latest')
+    if (latestMarked) {
+      activeByUser.set(userId, latestMarked)
+      continue
+    }
+
+    const newestReal = sorted.find((upload) => upload.status !== 'duplicate')
+    if (newestReal) {
+      activeByUser.set(userId, newestReal)
+    }
+  }
+
+  return activeByUser
+}
+
+function filterEntriesToActiveUploads(
+  entries: SalesEntry[],
+  activeUploadByUser: Map<string, UploadMeta>,
+): SalesEntry[] {
+  return entries.filter((entry) => {
+    const activeUpload = activeUploadByUser.get(entry.userId)
+    return activeUpload?.id === entry.uploadId
+  })
+}
+
 export async function fetchDashboardData(user: User): Promise<DashboardData> {
   const db = requireSupabase()
   const canViewAll = user.role === 'admin' || user.role === 'manager'
@@ -266,10 +308,12 @@ export async function fetchDashboardData(user: User): Promise<DashboardData> {
   if (entriesRes.error) throw new Error(`Fetch sales_entries failed: ${entriesRes.error.message}`)
   if (uploadsRes.error) throw new Error(`Fetch uploads failed: ${uploadsRes.error.message}`)
 
-  return {
-    entries: (entriesRes.data ?? []).map((row) => mapEntry(row as Record<string, unknown>)),
-    uploads: (uploadsRes.data ?? []).map((row) => mapUpload(row as Record<string, unknown>)),
-  }
+  const uploads = (uploadsRes.data ?? []).map((row) => mapUpload(row as Record<string, unknown>))
+  const allEntries = (entriesRes.data ?? []).map((row) => mapEntry(row as Record<string, unknown>))
+  const activeUploadByUser = getActiveUploadByUser(uploads)
+  const entries = filterEntriesToActiveUploads(allEntries, activeUploadByUser)
+
+  return { entries, uploads }
 }
 
 export async function saveUpload(
@@ -344,7 +388,7 @@ export async function saveUpload(
     upload,
     isDuplicate,
     message: isDuplicate
-      ? 'Duplicate sheet detected. Saved to history as Duplicate — dashboard data unchanged.'
-      : 'Upload saved. Marked as Latest and applied to your dashboard.',
+      ? 'Duplicate sheet detected. Saved to history only — your dashboard still uses the latest real sheet.'
+      : 'Latest real sheet saved and applied to your dashboard.',
   }
 }

@@ -6,7 +6,7 @@ import { SalesTeamCharts } from './charts/SalesTeamCharts'
 import { ManagerCharts } from './charts/ManagerCharts'
 import { useAuth } from '../context/AuthContext'
 import { canViewAllData, fetchAllUsers } from '../lib/auth'
-import { fetchDashboardData } from '../lib/dataService'
+import { fetchDashboardData, getActiveUploadByUser } from '../lib/dataService'
 import { filterEntries, getDashboardStats, getPeriodOptions, getRegionOptions } from '../lib/chartUtils'
 import { checkDatabaseSetup } from '../lib/supabase'
 import type { DashboardData, DashboardFilters, User } from '../lib/types'
@@ -75,9 +75,12 @@ export function DashboardPage() {
   )
   const regionOptions = useMemo(() => getRegionOptions(data.entries), [data.entries])
   const stats = useMemo(() => getDashboardStats(filteredEntries), [filteredEntries])
-  const isManagerView = user ? canViewAllData(user) : false
+  const activeUploads = useMemo(() => getActiveUploadByUser(data.uploads), [data.uploads])
 
   if (!user) return null
+
+  const activeUpload = activeUploads.get(user.id)
+  const isManagerView = canViewAllData(user)
 
   return (
     <div className="page-shell">
@@ -97,6 +100,13 @@ export function DashboardPage() {
         <div>
           <p className="eyebrow">{isManagerView ? 'Manager Analytics' : 'My Performance'}</p>
           <h3>{isManagerView ? 'Team Comparative Dashboard' : 'Personal Sales Dashboard'}</h3>
+          {!isManagerView && activeUpload ? (
+            <p className="muted">
+              Dashboard shows data from your latest real sheet: <strong>{activeUpload.fileName}</strong>
+            </p>
+          ) : isManagerView ? (
+            <p className="muted">Charts use each employee&apos;s latest real sheet only — duplicates are excluded.</p>
+          ) : null}
         </div>
         <button type="button" className="secondary-btn" onClick={() => void loadData()}>
           <RefreshCw size={16} />
