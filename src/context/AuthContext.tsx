@@ -66,9 +66,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!nextUser) {
             return 'Invalid email or password.'
           }
-          const resolved = (await resolveUserRecord(nextUser)) ?? nextUser
-          saveSession(resolved)
-          setUser(resolved)
+          const resolved = await resolveUserRecord(nextUser)
+          const sessionUser = resolved?.user ?? nextUser
+          saveSession(sessionUser)
+          setUser(sessionUser)
           return null
         } catch (error) {
           return error instanceof Error ? error.message : 'Login failed'

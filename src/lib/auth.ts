@@ -15,20 +15,46 @@ export function mapUserFromDb(row: Record<string, unknown>): User {
   }
 }
 
-export async function fetchUserById(userId: string): Promise<User | null> {
+/** Exact id stored in Postgres — may include stray whitespace until fix_users.sql is run. */
+export function dbUserIdFromRow(row: Record<string, unknown>): string {
+  return String(row.id ?? '')
+}
+
+export interface ResolvedUser {
+  user: User
+  dbUserId: string
+}
+
+function mapResolvedUser(row: Record<string, unknown>): ResolvedUser {
+  return {
+    user: mapUserFromDb(row),
+    dbUserId: dbUserIdFromRow(row),
+  }
+}
+
+export async function fetchUserById(userId: string): Promise<ResolvedUser | null> {
   if (!supabase) return null
 
+  const trimmedId = userId.trim()
   const { data, error } = await supabase
     .from('users')
     .select('id, email, name, first_name, role, region, zone')
-    .eq('id', userId.trim())
+    .eq('id', trimmedId)
     .maybeSingle()
 
-  if (error || !data) return null
-  return mapUserFromDb(data as Record<string, unknown>)
+  if (!error && data) return mapResolvedUser(data as Record<string, unknown>)
+
+  const { data: allMatches, error: listError } = await supabase
+    .from('users')
+    .select('id, email, name, first_name, role, region, zone')
+
+  if (listError || !allMatches) return null
+
+  const match = allMatches.find((row) => String(row.id ?? '').trim() === trimmedId)
+  return match ? mapResolvedUser(match as Record<string, unknown>) : null
 }
 
-export async function fetchUserByEmail(email: string): Promise<User | null> {
+export async function fetchUserByEmail(email: string): Promise<ResolvedUser | null> {
   if (!supabase) return null
 
   const normalizedEmail = email.trim().toLowerCase()
@@ -39,13 +65,13 @@ export async function fetchUserByEmail(email: string): Promise<User | null> {
     .maybeSingle()
 
   if (error || !data) return null
-  return mapUserFromDb(data as Record<string, unknown>)
+  return mapResolvedUser(data as Record<string, unknown>)
 }
 
-export async function resolveUserRecord(user: User): Promise<User | null> {
-  const byId = await fetchUserById(user.id)
-  if (byId) return byId
-  return fetchUserByEmail(user.email)
+export async function resolveUserRecord(user: User): Promise<ResolvedUser | null> {
+  const byEmail = await fetchUserByEmail(user.email)
+  if (byEmail) return byEmail
+  return fetchUserById(user.id)
 }
 
 export async function fetchUserByCredentials(
@@ -93,7 +119,8 @@ export async function authenticate(email: string, password: string): Promise<Use
 }
 
 export async function refreshSessionUser(sessionUser: User): Promise<User | null> {
-  return resolveUserRecord(sessionUser)
+  const resolved = await resolveUserRecord(sessionUser)
+  return resolved?.user ?? null
 }
 
 export function saveSession(user: User): void {

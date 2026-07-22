@@ -1,4 +1,4 @@
-import { canManageUploads, resolveUserRecord } from './auth'
+import { canManageUploads, resolveUserRecord, type ResolvedUser } from './auth'
 import type {
   DashboardData,
   ParsedSalesRow,
@@ -109,8 +109,9 @@ function toEntries(
   user: User,
   uploadId: string,
   uploadedAt: string,
+  dbUserId: string,
 ): SalesEntry[] {
-  const userId = user.id.trim()
+  const userId = dbUserId
 
   return rows.map((row) => ({
     id: createId('entry'),
@@ -201,11 +202,11 @@ function entryToDbRow(row: SalesEntry) {
   }
 }
 
-async function resolveUploadUser(user: User): Promise<User> {
+async function resolveUploadUser(user: User): Promise<ResolvedUser> {
   const resolved = await resolveUserRecord(user)
   if (!resolved) {
     throw new Error(
-      `Account "${user.email}" was not found. Log out and sign in again, or ask your admin to add this user in Supabase.`,
+      `Account "${user.email}" was not found. Log out and sign in again. If this continues, run supabase/fix_users.sql in Supabase SQL Editor.`,
     )
   }
   return resolved
@@ -339,11 +340,11 @@ export async function saveUpload(
   rows: ParsedSalesRow[],
 ): Promise<SaveUploadResult> {
   const db = requireSupabase()
-  const resolvedUser = await resolveUploadUser(user)
+  const { user: resolvedUser, dbUserId } = await resolveUploadUser(user)
   const uploadedAt = new Date().toISOString()
   const uploadId = createId('upload')
-  const entries = toEntries(rows, resolvedUser, uploadId, uploadedAt)
-  const userId = resolvedUser.id.trim()
+  const entries = toEntries(rows, resolvedUser, uploadId, uploadedAt, dbUserId)
+  const userId = dbUserId
   const contentHash = await hashRows(rows)
 
   const existingUploads = await fetchUserUploads(userId)
@@ -391,7 +392,7 @@ export async function saveUpload(
   if (uploadError) {
     throw new Error(
       uploadError.code === '23503'
-        ? `Upload failed: account "${resolvedUser.email}" is not linked correctly in Supabase. Run supabase/fix_users.sql, then log out and sign in again.`
+        ? `Upload failed: account "${resolvedUser.email}" has a corrupted user id in Supabase. Run supabase/fix_users.sql in SQL Editor, then log out and sign in again.`
         : uploadError.message.includes('content_hash') || uploadError.message.includes('status')
           ? 'Upload columns missing. Run supabase/add_upload_status.sql in Supabase SQL Editor.'
           : `Upload failed: ${uploadError.message}`,
