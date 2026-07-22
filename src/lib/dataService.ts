@@ -1,4 +1,4 @@
-import { canManageUploads } from './auth'
+import { canManageUploads, resolveUserRecord } from './auth'
 import type {
   DashboardData,
   ParsedSalesRow,
@@ -201,18 +201,14 @@ function entryToDbRow(row: SalesEntry) {
   }
 }
 
-async function verifyUserInDatabase(user: User): Promise<void> {
-  const db = requireSupabase()
-  const userId = user.id.trim()
-
-  const { data, error } = await db.from('users').select('id').eq('id', userId).maybeSingle()
-
-  if (error) throw new Error(`Could not verify user: ${error.message}`)
-  if (!data) {
+async function resolveUploadUser(user: User): Promise<User> {
+  const resolved = await resolveUserRecord(user)
+  if (!resolved) {
     throw new Error(
-      `User "${user.email}" not found in database. Add this user in Supabase users table.`,
+      `Account "${user.email}" was not found. Log out and sign in again, or ask your admin to add this user in Supabase.`,
     )
   }
+  return resolved
 }
 
 async function fetchUserUploads(userId: string): Promise<UploadMeta[]> {
@@ -343,13 +339,12 @@ export async function saveUpload(
   rows: ParsedSalesRow[],
 ): Promise<SaveUploadResult> {
   const db = requireSupabase()
+  const resolvedUser = await resolveUploadUser(user)
   const uploadedAt = new Date().toISOString()
   const uploadId = createId('upload')
-  const entries = toEntries(rows, user, uploadId, uploadedAt)
-  const userId = user.id.trim()
+  const entries = toEntries(rows, resolvedUser, uploadId, uploadedAt)
+  const userId = resolvedUser.id.trim()
   const contentHash = await hashRows(rows)
-
-  await verifyUserInDatabase(user)
 
   const existingUploads = await fetchUserUploads(userId)
   const previousLatest = existingUploads.find((upload) => upload.status === 'latest')
@@ -360,7 +355,7 @@ export async function saveUpload(
   const upload: UploadMeta = {
     id: uploadId,
     userId,
-    userName: user.name,
+    userName: resolvedUser.name,
     fileName,
     rowCount: entries.length,
     uploadedAt,
@@ -396,7 +391,7 @@ export async function saveUpload(
   if (uploadError) {
     throw new Error(
       uploadError.code === '23503'
-        ? `Upload failed: user "${user.email}" not linked in users table.`
+        ? `Upload failed: account "${resolvedUser.email}" is not linked correctly in Supabase. Run supabase/fix_users.sql, then log out and sign in again.`
         : uploadError.message.includes('content_hash') || uploadError.message.includes('status')
           ? 'Upload columns missing. Run supabase/add_upload_status.sql in Supabase SQL Editor.'
           : `Upload failed: ${uploadError.message}`,

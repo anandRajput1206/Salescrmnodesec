@@ -5,6 +5,7 @@ import {
   clearSession,
   loadSession,
   refreshSessionUser,
+  resolveUserRecord,
   saveSession,
 } from '../lib/auth'
 import { isSupabaseConfigured } from '../lib/supabase'
@@ -13,6 +14,7 @@ interface AuthContextValue {
   user: User | null
   login: (email: string, password: string) => Promise<string | null>
   logout: () => void
+  refreshUser: () => Promise<User | null>
   authLoading: boolean
   sessionChecking: boolean
   supabaseReady: boolean
@@ -64,14 +66,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!nextUser) {
             return 'Invalid email or password.'
           }
-          saveSession(nextUser)
-          setUser(nextUser)
+          const resolved = (await resolveUserRecord(nextUser)) ?? nextUser
+          saveSession(resolved)
+          setUser(resolved)
           return null
         } catch (error) {
           return error instanceof Error ? error.message : 'Login failed'
         } finally {
           setAuthLoading(false)
         }
+      },
+      refreshUser: async () => {
+        const current = user ?? loadSession()
+        if (!current) return null
+
+        const refreshed = await refreshSessionUser(current)
+        if (!refreshed) {
+          clearSession()
+          setUser(null)
+          return null
+        }
+
+        saveSession(refreshed)
+        setUser(refreshed)
+        return refreshed
       },
       logout: () => {
         clearSession()

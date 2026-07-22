@@ -23,7 +23,7 @@ function AppShell() {
   return (
     <AppLayout user={user} view={currentView} onViewChange={setView} onLogout={logout}>
       {currentView === 'upload' ? (
-        <UploadPage user={user} onSuccess={() => setView('dashboard')} />
+        <UploadPage onSuccess={() => setView('dashboard')} />
       ) : (
         <DashboardPage />
       )}

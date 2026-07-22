@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { FileSpreadsheet, Upload, X } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
 import { parseUploadFile } from '../lib/excelParser'
 import { saveUpload } from '../lib/dataService'
 import { uploadPageDescription } from '../lib/uiCopy'
-import type { ParsedSalesRow, User } from '../lib/types'
+import type { ParsedSalesRow } from '../lib/types'
 
 interface UploadPageProps {
-  user: User
   onSuccess: () => void
 }
 
@@ -17,7 +17,8 @@ function isAcceptedFile(file: File): boolean {
   return ACCEPTED_EXTENSIONS.some((ext) => name.endsWith(ext))
 }
 
-export function UploadPage({ user, onSuccess }: UploadPageProps) {
+export function UploadPage({ onSuccess }: UploadPageProps) {
+  const { user, refreshUser } = useAuth()
   const inputRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState('')
   const [warnings, setWarnings] = useState<string[]>([])
@@ -78,6 +79,11 @@ export function UploadPage({ user, onSuccess }: UploadPageProps) {
   }
 
   async function handleUpload() {
+    if (!user) {
+      setError('Your session expired. Please log in again.')
+      return
+    }
+
     if (parsedRows.length === 0) {
       setError('No valid rows found. Use the CyberSecurity Sales template.')
       return
@@ -87,7 +93,8 @@ export function UploadPage({ user, onSuccess }: UploadPageProps) {
     setError('')
 
     try {
-      const result = await saveUpload(user, fileName, parsedRows)
+      const activeUser = (await refreshUser()) ?? user
+      const result = await saveUpload(activeUser, fileName, parsedRows)
       setToast({
         title: result.isDuplicate ? 'Duplicate sheet' : 'Upload saved',
         type: 'info',
@@ -105,6 +112,8 @@ export function UploadPage({ user, onSuccess }: UploadPageProps) {
       setLoading(false)
     }
   }
+
+  if (!user) return null
 
   return (
     <div className="page-shell">

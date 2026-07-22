@@ -28,6 +28,26 @@ export async function fetchUserById(userId: string): Promise<User | null> {
   return mapUserFromDb(data as Record<string, unknown>)
 }
 
+export async function fetchUserByEmail(email: string): Promise<User | null> {
+  if (!supabase) return null
+
+  const normalizedEmail = email.trim().toLowerCase()
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, email, name, first_name, role, region, zone')
+    .ilike('email', normalizedEmail)
+    .maybeSingle()
+
+  if (error || !data) return null
+  return mapUserFromDb(data as Record<string, unknown>)
+}
+
+export async function resolveUserRecord(user: User): Promise<User | null> {
+  const byId = await fetchUserById(user.id)
+  if (byId) return byId
+  return fetchUserByEmail(user.email)
+}
+
 export async function fetchUserByCredentials(
   email: string,
   password: string,
@@ -73,7 +93,7 @@ export async function authenticate(email: string, password: string): Promise<Use
 }
 
 export async function refreshSessionUser(sessionUser: User): Promise<User | null> {
-  return fetchUserById(sessionUser.id)
+  return resolveUserRecord(sessionUser)
 }
 
 export function saveSession(user: User): void {
