@@ -146,7 +146,8 @@ button { cursor: pointer; }
 
 .primary-btn,
 .secondary-btn,
-.ghost-btn {
+.ghost-btn,
+.danger-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -177,6 +178,19 @@ button { cursor: pointer; }
   color: #475569;
   padding: 10px 14px;
 }
+
+.danger-btn {
+  background: #fff1f2;
+  color: #be123c;
+  border: 1px solid #fecdd3;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.danger-btn:hover { background: #ffe4e6; }
+.danger-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .filter-bar {
   display: grid;

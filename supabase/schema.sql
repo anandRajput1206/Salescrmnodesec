@@ -102,6 +102,7 @@ alter table sales_entries enable row level security;
 create policy "public read users" on users for select using (true);
 create policy "public read uploads" on uploads for select using (true);
 create policy "public insert uploads" on uploads for insert with check (true);
+create policy "public update uploads" on uploads for update using (true) with check (true);
 create policy "public delete uploads" on uploads for delete using (true);
 create policy "public read sales_entries" on sales_entries for select using (true);
 create policy "public insert sales_entries" on sales_entries for insert with check (true);

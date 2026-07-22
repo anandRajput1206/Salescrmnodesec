@@ -107,3 +107,7 @@ export function canUpload(user: User): boolean {
 export function canViewAllData(user: User): boolean {
   return user.role === 'admin' || user.role === 'manager'
 }
+
+export function canManageUploads(user: User): boolean {
+  return user.role === 'admin' || user.role === 'manager'
+}

@@ -1,3 +1,4 @@
+import { canManageUploads } from './auth'
 import type {
   DashboardData,
   ParsedSalesRow,
@@ -214,17 +215,6 @@ async function verifyUserInDatabase(user: User): Promise<void> {
   }
 }
 
-async function deleteUserEntries(userId: string): Promise<void> {
-  const db = requireSupabase()
-  const trimmedId = userId.trim()
-
-  const { error: entriesError } = await db
-    .from('sales_entries')
-    .delete()
-    .eq('user_id', trimmedId)
-  if (entriesError) throw new Error(`Delete sales_entries failed: ${entriesError.message}`)
-}
-
 async function fetchUserUploads(userId: string): Promise<UploadMeta[]> {
   const db = requireSupabase()
   const { data, error } = await db
@@ -355,8 +345,8 @@ export async function saveUpload(
     if (demoteError) {
       throw new Error(`Could not update previous uploads: ${demoteError.message}`)
     }
-
-    await deleteUserEntries(userId)
+    // Keep previous sheet rows in DB so managers can delete a bad Latest
+    // and restore the prior real sheet on the dashboard.
   }
 
   const { error: uploadError } = await db.from('uploads').insert({
@@ -390,5 +380,64 @@ export async function saveUpload(
     message: isDuplicate
       ? 'Duplicate sheet detected. Saved to history only — your dashboard still uses the latest real sheet.'
       : 'Latest real sheet saved and applied to your dashboard.',
+  }
+}
+
+export async function deleteUpload(
+  actor: User,
+  uploadId: string,
+): Promise<{ message: string }> {
+  if (!canManageUploads(actor)) {
+    throw new Error('Only managers and admins can delete uploaded sheets.')
+  }
+
+  const db = requireSupabase()
+  const { data, error } = await db.from('uploads').select('*').eq('id', uploadId).maybeSingle()
+
+  if (error) throw new Error(`Could not load upload: ${error.message}`)
+  if (!data) throw new Error('Upload not found.')
+
+  const upload = mapUpload(data as Record<string, unknown>)
+  const wasLatest = upload.status === 'latest'
+  const ownerId = upload.userId
+
+  const { error: entriesError } = await db.from('sales_entries').delete().eq('upload_id', uploadId)
+  if (entriesError) {
+    throw new Error(`Could not delete sheet data: ${entriesError.message}`)
+  }
+
+  const { error: uploadError } = await db.from('uploads').delete().eq('id', uploadId)
+  if (uploadError) {
+    throw new Error(`Could not delete upload record: ${uploadError.message}`)
+  }
+
+  if (!wasLatest) {
+    return {
+      message: `Removed ${upload.status} sheet "${upload.fileName}" from history.`,
+    }
+  }
+
+  const remaining = await fetchUserUploads(ownerId)
+  const nextReal = remaining
+    .filter((item) => item.status !== 'duplicate')
+    .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0]
+
+  if (!nextReal) {
+    return {
+      message: `Deleted incorrect latest sheet for ${upload.userName}. No previous real sheet left — dashboard is empty for this employee until a new upload.`,
+    }
+  }
+
+  const { error: promoteError } = await db
+    .from('uploads')
+    .update({ status: 'latest' })
+    .eq('id', nextReal.id)
+
+  if (promoteError) {
+    throw new Error(`Deleted sheet, but could not restore previous: ${promoteError.message}`)
+  }
+
+  return {
+    message: `Deleted incorrect sheet for ${upload.userName}. Restored previous real sheet "${nextReal.fileName}" as Latest.`,
   }
 }
