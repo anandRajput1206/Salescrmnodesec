@@ -1,5 +1,5 @@
-import { useRef, useState, type DragEvent } from 'react'
-import { FileSpreadsheet, Upload } from 'lucide-react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { FileSpreadsheet, Upload, X } from 'lucide-react'
 import { parseUploadFile } from '../lib/excelParser'
 import { saveUpload } from '../lib/dataService'
 import type { ParsedSalesRow, User } from '../lib/types'
@@ -24,6 +24,13 @@ export function UploadPage({ user, onSuccess }: UploadPageProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [isDragging, setIsDragging] = useState(false)
+  const [toast, setToast] = useState<{ title: string; type: 'error' | 'info'; message: string } | null>(null)
+
+  useEffect(() => {
+    if (!toast) return
+    const timer = window.setTimeout(() => setToast(null), 6000)
+    return () => window.clearTimeout(timer)
+  }, [toast])
 
   async function handleFileChange(file: File | null) {
     if (!file) return
@@ -79,10 +86,20 @@ export function UploadPage({ user, onSuccess }: UploadPageProps) {
     setError('')
 
     try {
-      await saveUpload(user, fileName, parsedRows)
-      onSuccess()
+      const result = await saveUpload(user, fileName, parsedRows)
+      setToast({
+        title: result.isDuplicate ? 'Duplicate sheet' : 'Upload saved',
+        type: result.isDuplicate ? 'error' : 'info',
+        message: result.message,
+      })
+
+      if (!result.isDuplicate) {
+        window.setTimeout(() => onSuccess(), 900)
+      }
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : 'Upload failed')
+      const message = uploadError instanceof Error ? uploadError.message : 'Upload failed'
+      setError(message)
+      setToast({ title: 'Upload failed', type: 'error', message })
     } finally {
       setLoading(false)
     }
@@ -90,12 +107,24 @@ export function UploadPage({ user, onSuccess }: UploadPageProps) {
 
   return (
     <div className="page-shell">
+      {toast ? (
+        <div className={`app-toast app-toast-${toast.type}`} role="status">
+          <div>
+            <strong>{toast.title}</strong>
+            <p>{toast.message}</p>
+          </div>
+          <button type="button" className="app-toast-close" onClick={() => setToast(null)} aria-label="Dismiss">
+            <X size={16} />
+          </button>
+        </div>
+      ) : null}
+
       <header className="page-header">
         <div>
           <p className="eyebrow">Upload</p>
           <h4>Upload Sales Data</h4>
           <p className="muted">
-            Upload the CyberSecurity Sales template. Your previous upload will be replaced.
+            Every upload is kept in history. New data becomes Latest; the same sheet is saved as Duplicate.
           </p>
         </div>
       </header>
@@ -146,7 +175,7 @@ export function UploadPage({ user, onSuccess }: UploadPageProps) {
           type="button"
           className="primary-btn"
           disabled={loading || parsedRows.length === 0}
-          onClick={handleUpload}
+          onClick={() => void handleUpload()}
         >
           <Upload size={16} />
           {loading ? 'Uploading...' : 'Upload to dashboard'}

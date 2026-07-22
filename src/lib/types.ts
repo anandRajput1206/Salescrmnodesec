@@ -18,6 +18,8 @@ export interface DashboardFilters {
   employeeId: string
 }
 
+export type UploadStatus = 'latest' | 'duplicate' | 'previous'
+
 export interface UploadMeta {
   id: string
   userId: string
@@ -25,6 +27,14 @@ export interface UploadMeta {
   fileName: string
   rowCount: number
   uploadedAt: string
+  status: UploadStatus
+  contentHash: string
+}
+
+export interface SaveUploadResult {
+  upload: UploadMeta
+  isDuplicate: boolean
+  message: string
 }
 
 export interface SalesEntry {

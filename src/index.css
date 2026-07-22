@@ -285,6 +285,33 @@ button { cursor: pointer; }
 
 .upload-history { margin-top: 24px; }
 
+.upload-status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.upload-status-latest {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.upload-status-duplicate {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+.upload-status-previous {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
 .table-wrap {
   overflow-x: auto;
   border-radius: 16px;

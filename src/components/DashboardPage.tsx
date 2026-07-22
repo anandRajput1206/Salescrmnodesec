@@ -148,15 +148,25 @@ export function DashboardPage() {
                   {isManagerView ? <th>Employee</th> : null}
                   <th>File</th>
                   <th>Rows</th>
+                  <th>Type</th>
                   <th>Uploaded</th>
                 </tr>
               </thead>
               <tbody>
-                {data.uploads.slice(0, 8).map((upload) => (
+                {data.uploads.map((upload) => (
                   <tr key={upload.id}>
                     {isManagerView ? <td>{upload.userName}</td> : null}
                     <td>{upload.fileName}</td>
                     <td>{upload.rowCount}</td>
+                    <td>
+                      <span className={`upload-status-badge upload-status-${upload.status}`}>
+                        {upload.status === 'latest'
+                          ? 'Latest'
+                          : upload.status === 'duplicate'
+                            ? 'Duplicate'
+                            : 'Previous'}
+                      </span>
+                    </td>
                     <td>{new Date(upload.uploadedAt).toLocaleString()}</td>
                   </tr>
                 ))}

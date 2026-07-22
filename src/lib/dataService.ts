@@ -1,4 +1,12 @@
-import type { DashboardData, ParsedSalesRow, SalesEntry, UploadMeta, User } from './types'
+import type {
+  DashboardData,
+  ParsedSalesRow,
+  SalesEntry,
+  SaveUploadResult,
+  UploadMeta,
+  UploadStatus,
+  User,
+} from './types'
 import { isSupabaseConfigured, supabase } from './supabase'
 
 const INSERT_BATCH_SIZE = 100
@@ -68,6 +76,12 @@ function mapEntry(row: Record<string, unknown>): SalesEntry {
 }
 
 function mapUpload(row: Record<string, unknown>): UploadMeta {
+  const rawStatus = String(row.status ?? 'latest')
+  const status: UploadStatus =
+    rawStatus === 'duplicate' || rawStatus === 'previous' || rawStatus === 'latest'
+      ? rawStatus
+      : 'latest'
+
   return {
     id: String(row.id),
     userId: String(row.user_id ?? row.userId).trim(),
@@ -75,7 +89,18 @@ function mapUpload(row: Record<string, unknown>): UploadMeta {
     fileName: String(row.file_name ?? row.fileName),
     rowCount: Number(row.row_count ?? row.rowCount ?? 0),
     uploadedAt: String(row.uploaded_at ?? row.uploadedAt),
+    status,
+    contentHash: String(row.content_hash ?? row.contentHash ?? ''),
   }
+}
+
+async function hashRows(rows: ParsedSalesRow[]): Promise<string> {
+  const payload = JSON.stringify(rows)
+  const bytes = new TextEncoder().encode(payload)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
 }
 
 function toEntries(
@@ -189,7 +214,7 @@ async function verifyUserInDatabase(user: User): Promise<void> {
   }
 }
 
-async function deleteUserData(userId: string): Promise<void> {
+async function deleteUserEntries(userId: string): Promise<void> {
   const db = requireSupabase()
   const trimmedId = userId.trim()
 
@@ -198,9 +223,18 @@ async function deleteUserData(userId: string): Promise<void> {
     .delete()
     .eq('user_id', trimmedId)
   if (entriesError) throw new Error(`Delete sales_entries failed: ${entriesError.message}`)
+}
 
-  const { error: uploadsError } = await db.from('uploads').delete().eq('user_id', trimmedId)
-  if (uploadsError) throw new Error(`Delete uploads failed: ${uploadsError.message}`)
+async function fetchUserUploads(userId: string): Promise<UploadMeta[]> {
+  const db = requireSupabase()
+  const { data, error } = await db
+    .from('uploads')
+    .select('*')
+    .eq('user_id', userId.trim())
+    .order('uploaded_at', { ascending: false })
+
+  if (error) throw new Error(`Fetch uploads failed: ${error.message}`)
+  return (data ?? []).map((row) => mapUpload(row as Record<string, unknown>))
 }
 
 async function insertEntriesInBatches(entries: SalesEntry[]): Promise<void> {
@@ -242,12 +276,19 @@ export async function saveUpload(
   user: User,
   fileName: string,
   rows: ParsedSalesRow[],
-): Promise<UploadMeta> {
+): Promise<SaveUploadResult> {
   const db = requireSupabase()
   const uploadedAt = new Date().toISOString()
   const uploadId = createId('upload')
   const entries = toEntries(rows, user, uploadId, uploadedAt)
   const userId = user.id.trim()
+  const contentHash = await hashRows(rows)
+
+  await verifyUserInDatabase(user)
+
+  const existingUploads = await fetchUserUploads(userId)
+  const isDuplicate = existingUploads.some((upload) => upload.contentHash === contentHash)
+  const status: UploadStatus = isDuplicate ? 'duplicate' : 'latest'
 
   const upload: UploadMeta = {
     id: uploadId,
@@ -256,10 +297,23 @@ export async function saveUpload(
     fileName,
     rowCount: entries.length,
     uploadedAt,
+    status,
+    contentHash,
   }
 
-  await deleteUserData(userId)
-  await verifyUserInDatabase(user)
+  if (!isDuplicate) {
+    const { error: demoteError } = await db
+      .from('uploads')
+      .update({ status: 'previous' })
+      .eq('user_id', userId)
+      .eq('status', 'latest')
+
+    if (demoteError) {
+      throw new Error(`Could not update previous uploads: ${demoteError.message}`)
+    }
+
+    await deleteUserEntries(userId)
+  }
 
   const { error: uploadError } = await db.from('uploads').insert({
     id: upload.id,
@@ -267,6 +321,8 @@ export async function saveUpload(
     user_name: upload.userName,
     file_name: upload.fileName,
     row_count: upload.rowCount,
+    status: upload.status,
+    content_hash: upload.contentHash,
     uploaded_at: upload.uploadedAt,
   })
 
@@ -274,10 +330,21 @@ export async function saveUpload(
     throw new Error(
       uploadError.code === '23503'
         ? `Upload failed: user "${user.email}" not linked in users table.`
-        : `Upload failed: ${uploadError.message}`,
+        : uploadError.message.includes('content_hash') || uploadError.message.includes('status')
+          ? 'Upload columns missing. Run supabase/add_upload_status.sql in Supabase SQL Editor.'
+          : `Upload failed: ${uploadError.message}`,
     )
   }
 
-  await insertEntriesInBatches(entries)
-  return upload
+  if (!isDuplicate) {
+    await insertEntriesInBatches(entries)
+  }
+
+  return {
+    upload,
+    isDuplicate,
+    message: isDuplicate
+      ? 'Duplicate sheet detected. Saved to history as Duplicate — dashboard data unchanged.'
+      : 'Upload saved. Marked as Latest and applied to your dashboard.',
+  }
 }
