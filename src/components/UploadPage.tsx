@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { FileSpreadsheet, Upload, X } from 'lucide-react'
 import { parseUploadFile } from '../lib/excelParser'
 import { saveUpload } from '../lib/dataService'
+import { uploadPageDescription } from '../lib/uiCopy'
 import type { ParsedSalesRow, User } from '../lib/types'
 
 interface UploadPageProps {
@@ -123,9 +124,7 @@ export function UploadPage({ user, onSuccess }: UploadPageProps) {
         <div>
           <p className="eyebrow">Upload</p>
           <h4>Upload Sales Data</h4>
-          <p className="muted">
-            Every upload is kept in history. New data becomes Latest; the same sheet is saved as Duplicate.
-          </p>
+          <p className="muted">{uploadPageDescription(user.role)}</p>
         </div>
       </header>
 

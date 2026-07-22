@@ -4,9 +4,7 @@ import { formatPeriodLabel } from '../lib/chartUtils'
 interface FilterBarProps {
   filters: DashboardFilters
   periodOptions: string[]
-  regionOptions: string[]
   teamUsers: User[]
-  showRegionFilter: boolean
   showEmployeeFilter: boolean
   onChange: (filters: DashboardFilters) => void
 }
@@ -14,9 +12,7 @@ interface FilterBarProps {
 export function FilterBar({
   filters,
   periodOptions,
-  regionOptions,
   teamUsers,
-  showRegionFilter,
   showEmployeeFilter,
   onChange,
 }: FilterBarProps) {
@@ -60,23 +56,6 @@ export function FilterBar({
           ))}
         </select>
       </label>
-
-      {showRegionFilter ? (
-        <label>
-          <span>Region</span>
-          <select
-            value={filters.region}
-            onChange={(event) => onChange({ ...filters, region: event.target.value })}
-          >
-            <option value="all">All regions</option>
-            {regionOptions.map((region) => (
-              <option key={region} value={region}>
-                {region}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
 
       {showEmployeeFilter ? (
         <label>

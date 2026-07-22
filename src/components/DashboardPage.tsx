@@ -7,16 +7,24 @@ import { ManagerCharts } from './charts/ManagerCharts'
 import { useAuth } from '../context/AuthContext'
 import { canManageUploads, canViewAllData, fetchAllUsers } from '../lib/auth'
 import { deleteUpload, fetchDashboardData, getActiveUploadByUser } from '../lib/dataService'
-import { filterEntries, getDashboardStats, getPeriodOptions, getRegionOptions } from '../lib/chartUtils'
+import { filterEntries, getDashboardStats, getPeriodOptions } from '../lib/chartUtils'
 import { checkDatabaseSetup } from '../lib/supabase'
-import type { DashboardData, DashboardFilters, UploadMeta, User } from '../lib/types'
+import {
+  dashboardEmptyMessage,
+  dashboardEyebrow,
+  dashboardSubtitle,
+  dashboardTitle,
+  deleteUploadConfirm,
+  uploadHistoryTitle,
+} from '../lib/uiCopy'
+import type { DashboardData, DashboardFilters, UploadMeta } from '../lib/types'
 
 const EMPTY: DashboardData = { entries: [], uploads: [] }
 
 export function DashboardPage() {
   const { user } = useAuth()
   const [data, setData] = useState<DashboardData>(EMPTY)
-  const [teamUsers, setTeamUsers] = useState<User[]>([])
+  const [teamUsers, setTeamUsers] = useState<Awaited<ReturnType<typeof fetchAllUsers>>>([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -78,42 +86,16 @@ export function DashboardPage() {
     () => getPeriodOptions(data.entries, filters.timePeriod),
     [data.entries, filters.timePeriod],
   )
-  const regionOptions = useMemo(() => getRegionOptions(data.entries), [data.entries])
   const stats = useMemo(() => getDashboardStats(filteredEntries), [filteredEntries])
   const activeUploads = useMemo(() => getActiveUploadByUser(data.uploads), [data.uploads])
-
-  const employeeRegionById = useMemo(() => {
-    const map = new Map<string, string>()
-
-    for (const [userId, upload] of activeUploads) {
-      const region = data.entries.find(
-        (entry) => entry.userId === userId && entry.uploadId === upload.id,
-      )?.region
-      if (region) map.set(userId, region)
-    }
-
-    for (const member of teamUsers) {
-      if (!map.has(member.id) && member.region) {
-        map.set(member.id, member.region)
-      }
-    }
-
-    return map
-  }, [activeUploads, data.entries, teamUsers])
 
   const historyUploads = useMemo(() => {
     if (!user || !canViewAllData(user)) return data.uploads
 
     return data.uploads.filter((upload) => {
-      const employeeMatch =
-        filters.employeeId === 'all' || upload.userId === filters.employeeId
-      if (!employeeMatch) return false
-
-      if (filters.region === 'all') return true
-      const region = employeeRegionById.get(upload.userId) ?? ''
-      return region.toLowerCase() === filters.region.toLowerCase()
+      return filters.employeeId === 'all' || upload.userId === filters.employeeId
     })
-  }, [data.uploads, employeeRegionById, filters.employeeId, filters.region, user])
+  }, [data.uploads, filters.employeeId, user])
 
   if (!user) return null
 
@@ -124,13 +106,7 @@ export function DashboardPage() {
   async function handleDeleteUpload(upload: UploadMeta) {
     if (!user || !canDeleteSheets) return
 
-    const confirmed = window.confirm(
-      `Delete "${upload.fileName}" uploaded by ${upload.userName}?\n\n` +
-        (upload.status === 'latest'
-          ? 'This is their Latest sheet. The previous real sheet will be restored on the dashboard if available.'
-          : 'This removes the sheet from history only.'),
-    )
-    if (!confirmed) return
+    if (!window.confirm(deleteUploadConfirm(upload))) return
 
     setDeletingId(upload.id)
     try {
@@ -161,17 +137,15 @@ export function DashboardPage() {
 
       <header className="page-header">
         <div>
-          <p className="eyebrow">{isManagerView ? 'Manager Analytics' : 'My Performance'}</p>
-          <h3>{isManagerView ? 'Team Comparative Dashboard' : 'Personal Sales Dashboard'}</h3>
+          <p className="eyebrow">{dashboardEyebrow(user.role)}</p>
+          <h3>{dashboardTitle(user.role)}</h3>
           {!isManagerView && activeUpload ? (
             <p className="muted">
-              Dashboard shows data from your latest real sheet: <strong>{activeUpload.fileName}</strong>
+              {dashboardSubtitle(user.role)} Active file: <strong>{activeUpload.fileName}</strong>
             </p>
-          ) : isManagerView ? (
-            <p className="muted">
-              Charts use each employee&apos;s latest real sheet. Managers can delete incorrect uploads from any region.
-            </p>
-          ) : null}
+          ) : (
+            <p className="muted">{dashboardSubtitle(user.role)}</p>
+          )}
         </div>
         <button type="button" className="secondary-btn" onClick={() => void loadData()}>
           <RefreshCw size={16} />
@@ -182,9 +156,7 @@ export function DashboardPage() {
       <FilterBar
         filters={filters}
         periodOptions={periodOptions}
-        regionOptions={regionOptions}
         teamUsers={teamUsers}
-        showRegionFilter={isManagerView}
         showEmployeeFilter={isManagerView}
         onChange={setFilters}
       />
@@ -197,11 +169,7 @@ export function DashboardPage() {
       {!loading && filteredEntries.length === 0 ? (
         <div className="empty-state">
           <h3>No data available</h3>
-          <p>
-            {isManagerView
-              ? 'Sales team members need to upload their Excel files first.'
-              : 'Upload the CyberSecurity Sales template from the Upload page.'}
-          </p>
+          <p>{dashboardEmptyMessage(user.role)}</p>
         </div>
       ) : (
         <section className="charts-grid">
@@ -215,13 +183,12 @@ export function DashboardPage() {
 
       {historyUploads.length > 0 ? (
         <section className="upload-history">
-          <h3>{isManagerView ? 'Team Upload History' : 'Your Upload History'}</h3>
+          <h3>{uploadHistoryTitle(user.role)}</h3>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
                   {isManagerView ? <th>Employee</th> : null}
-                  {isManagerView ? <th>Region</th> : null}
                   <th>File</th>
                   <th>Rows</th>
                   <th>Type</th>
@@ -233,7 +200,6 @@ export function DashboardPage() {
                 {historyUploads.map((upload) => (
                   <tr key={upload.id}>
                     {isManagerView ? <td>{upload.userName}</td> : null}
-                    {isManagerView ? <td>{employeeRegionById.get(upload.userId) || '—'}</td> : null}
                     <td>{upload.fileName}</td>
                     <td>{upload.rowCount}</td>
                     <td>
