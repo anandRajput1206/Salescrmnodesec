@@ -454,13 +454,10 @@ th {
 
 .login-brand {
   display: flex;
+  flex-wrap: wrap;
   gap: 14px;
   align-items: center;
   margin-bottom: 24px;
-}
-
-.login-brand {
-  flex-wrap: wrap;
 }
 
 .login-brand .brand-logo,
