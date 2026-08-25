@@ -22,8 +22,8 @@ export function AppLayout({ user, view, onViewChange, onLogout, children }: AppL
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand-block">
-          <img src="/logo.png" alt="Nodesec logo" className="brand-logo" />
-          <div>
+          <img src="/logo.png" alt="Nodesec" className="brand-logo" />
+          <div className="brand-text">
             <h1>Sales CRM</h1>
             <p>CyberSecurity Analytics</p>
           </div>
