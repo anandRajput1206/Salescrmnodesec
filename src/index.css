@@ -38,12 +38,13 @@ button { cursor: pointer; }
 }
 
 .brand-logo {
-  width: 48px;
-  height: 48px;
+  width: auto;
+  height: 44px;
+  max-width: 170px;
   object-fit: contain;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #fff;
-  padding: 4px;
+  padding: 6px 8px;
 }
 
 .brand-block h1,
@@ -458,13 +459,19 @@ th {
   margin-bottom: 24px;
 }
 
-.login-brand .brand-logo {
-  width: 52px;
-  height: 52px;
+.login-brand {
+  flex-wrap: wrap;
+}
+
+.login-brand .brand-logo,
+.brand-logo-wide {
+  width: auto;
+  height: 56px;
+  max-width: 240px;
   object-fit: contain;
   border-radius: 10px;
   background: #fff;
-  padding: 4px;
+  padding: 8px 10px;
 }
 
 .login-brand h1 {

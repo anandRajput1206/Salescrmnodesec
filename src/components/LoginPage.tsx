@@ -70,7 +70,7 @@ export function LoginPage() {
 
       <div className="login-card login-card-wide">
         <div className="login-brand">
-          <img src="/logo.png" alt="Nodesec logo" className="brand-logo" />
+          <img src="/logo.png" alt="Nodesec logo" className="brand-logo brand-logo-wide" />
           <div>
             <h1>CyberSecurity Sales CRM</h1>
             <p>Streamline Your Sales Process with Confidence</p>
