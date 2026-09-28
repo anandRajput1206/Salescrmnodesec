@@ -345,6 +345,18 @@ button { cursor: pointer; }
   border: 1px solid #cbd5e1;
 }
 
+.history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.history-download-btn {
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  border-radius: 8px;
+}
+
 .table-wrap {
   overflow-x: auto;
   border-radius: 16px;

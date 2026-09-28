@@ -29,6 +29,7 @@ export interface UploadMeta {
   uploadedAt: string
   status: UploadStatus
   contentHash: string
+  storagePath: string
 }
 
 export interface SaveUploadResult {

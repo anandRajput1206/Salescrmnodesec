@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
-import { RefreshCw, Trash2, X } from 'lucide-react'
+import { Download, RefreshCw, Trash2, X } from 'lucide-react'
 import { FilterBar } from './FilterBar'
 import { KpiCards } from './KpiCards'
 import { SalesTeamCharts } from './charts/SalesTeamCharts'
@@ -7,6 +7,7 @@ import { ManagerCharts } from './charts/ManagerCharts'
 import { useAuth } from '../context/AuthContext'
 import { canManageUploads, canViewAllData, fetchAllUsers } from '../lib/auth'
 import { deleteUpload, fetchDashboardData, getActiveUploadByUser } from '../lib/dataService'
+import { downloadUploadSheet } from '../lib/sheetArchive'
 import { filterEntries, getDashboardStats, getPeriodOptions } from '../lib/chartUtils'
 import { checkDatabaseSetup } from '../lib/supabase'
 import {
@@ -27,6 +28,7 @@ export function DashboardPage() {
   const [teamUsers, setTeamUsers] = useState<Awaited<ReturnType<typeof fetchAllUsers>>>([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [toast, setToast] = useState<{ type: 'error' | 'info'; title: string; message: string } | null>(
     null,
@@ -102,6 +104,23 @@ export function DashboardPage() {
   const activeUpload = activeUploads.get(user.id)
   const isManagerView = canViewAllData(user)
   const canDeleteSheets = canManageUploads(user)
+
+  async function handleDownloadUpload(upload: UploadMeta) {
+    setDownloadingId(upload.id)
+    try {
+      await downloadUploadSheet(upload)
+      setToast({
+        type: 'info',
+        title: 'Sheet downloaded',
+        message: `${upload.fileName} was saved to your computer.`,
+      })
+    } catch (downloadError) {
+      const message = downloadError instanceof Error ? downloadError.message : 'Download failed'
+      setToast({ type: 'error', title: 'Download failed', message })
+    } finally {
+      setDownloadingId(null)
+    }
+  }
 
   async function handleDeleteUpload(upload: UploadMeta) {
     if (!user || !canDeleteSheets) return
@@ -193,7 +212,7 @@ export function DashboardPage() {
                   <th>Rows</th>
                   <th>Type</th>
                   <th>Uploaded</th>
-                  {canDeleteSheets ? <th>Action</th> : null}
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -212,20 +231,32 @@ export function DashboardPage() {
                       </span>
                     </td>
                     <td>{new Date(upload.uploadedAt).toLocaleString()}</td>
-                    {canDeleteSheets ? (
-                      <td>
+                    <td>
+                      <div className="history-actions">
                         <button
                           type="button"
-                          className="danger-btn"
-                          disabled={deletingId === upload.id}
-                          onClick={() => void handleDeleteUpload(upload)}
-                          title="Delete incorrect upload"
+                          className="secondary-btn history-download-btn"
+                          disabled={downloadingId === upload.id}
+                          onClick={() => void handleDownloadUpload(upload)}
+                          title="Download this Excel file"
                         >
-                          <Trash2 size={14} />
-                          {deletingId === upload.id ? 'Deleting...' : 'Delete'}
+                          <Download size={14} />
+                          {downloadingId === upload.id ? 'Downloading...' : 'Download'}
                         </button>
-                      </td>
-                    ) : null}
+                        {canDeleteSheets ? (
+                          <button
+                            type="button"
+                            className="danger-btn"
+                            disabled={deletingId === upload.id}
+                            onClick={() => void handleDeleteUpload(upload)}
+                            title="Delete incorrect upload"
+                          >
+                            <Trash2 size={14} />
+                            {deletingId === upload.id ? 'Deleting...' : 'Delete'}
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

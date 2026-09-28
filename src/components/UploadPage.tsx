@@ -21,6 +21,7 @@ export function UploadPage({ onSuccess }: UploadPageProps) {
   const { user, refreshUser } = useAuth()
   const inputRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState('')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [warnings, setWarnings] = useState<string[]>([])
   const [parsedRows, setParsedRows] = useState<ParsedSalesRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -46,6 +47,7 @@ export function UploadPage({ onSuccess }: UploadPageProps) {
     setWarnings([])
     setParsedRows([])
     setFileName(file.name)
+    setSelectedFile(file)
 
     try {
       const buffer = await file.arrayBuffer()
@@ -84,7 +86,7 @@ export function UploadPage({ onSuccess }: UploadPageProps) {
       return
     }
 
-    if (parsedRows.length === 0) {
+    if (!selectedFile || parsedRows.length === 0) {
       setError('No valid rows found. Use the CyberSecurity Sales template.')
       return
     }
@@ -94,7 +96,7 @@ export function UploadPage({ onSuccess }: UploadPageProps) {
 
     try {
       const activeUser = (await refreshUser()) ?? user
-      const result = await saveUpload(activeUser, fileName, parsedRows)
+      const result = await saveUpload(activeUser, selectedFile, parsedRows)
       setToast({
         title: result.isDuplicate ? 'Duplicate sheet' : 'Upload saved',
         type: 'info',

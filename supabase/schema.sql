@@ -30,6 +30,7 @@ create table uploads (
   row_count integer not null default 0,
   status text not null default 'latest' check (status in ('latest', 'duplicate', 'previous')),
   content_hash text not null default '',
+  storage_path text not null default '',
   uploaded_at timestamptz not null default now()
 );
 

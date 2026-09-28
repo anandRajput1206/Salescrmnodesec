@@ -1,4 +1,9 @@
 import { canManageUploads, resolveUserRecord, type ResolvedUser } from './auth'
+import {
+  archiveSheetFile,
+  buildStoragePath,
+  removeArchivedSheet,
+} from './sheetArchive'
 import type {
   DashboardData,
   ParsedSalesRow,
@@ -92,6 +97,7 @@ function mapUpload(row: Record<string, unknown>): UploadMeta {
     uploadedAt: String(row.uploaded_at ?? row.uploadedAt),
     status,
     contentHash: String(row.content_hash ?? row.contentHash ?? ''),
+    storagePath: String(row.storage_path ?? row.storagePath ?? ''),
   }
 }
 
@@ -239,9 +245,11 @@ async function rollbackFailedUpload(
   userId: string,
   uploadId: string,
   previousLatestId: string | null,
+  storagePath: string,
 ): Promise<void> {
   const db = requireSupabase()
 
+  await removeArchivedSheet(storagePath)
   await db.from('uploads').delete().eq('id', uploadId)
 
   if (previousLatestId) {
@@ -336,7 +344,7 @@ export async function fetchDashboardData(user: User): Promise<DashboardData> {
 
 export async function saveUpload(
   user: User,
-  fileName: string,
+  file: File,
   rows: ParsedSalesRow[],
 ): Promise<SaveUploadResult> {
   const db = requireSupabase()
@@ -346,22 +354,26 @@ export async function saveUpload(
   const entries = toEntries(rows, resolvedUser, uploadId, uploadedAt, dbUserId)
   const userId = dbUserId
   const contentHash = await hashRows(rows)
+  const storagePath = buildStoragePath(userId, uploadId, file.name)
 
   const existingUploads = await fetchUserUploads(userId)
   const previousLatest = existingUploads.find((upload) => upload.status === 'latest')
   const previousLatestId = previousLatest?.id ?? null
   const isDuplicate = isDuplicateContent(existingUploads, contentHash)
   const status: UploadStatus = isDuplicate ? 'duplicate' : 'latest'
+  const archived = await archiveSheetFile(storagePath, file)
+  const savedPath = archived.saved ? storagePath : ''
 
   const upload: UploadMeta = {
     id: uploadId,
     userId,
     userName: resolvedUser.name,
-    fileName,
+    fileName: file.name,
     rowCount: entries.length,
     uploadedAt,
     status,
     contentHash,
+    storagePath: savedPath,
   }
 
   if (!isDuplicate) {
@@ -372,6 +384,7 @@ export async function saveUpload(
       .eq('status', 'latest')
 
     if (demoteError) {
+      await removeArchivedSheet(savedPath)
       throw new Error(`Could not update previous uploads: ${demoteError.message}`)
     }
     // Keep previous sheet rows in DB so managers can delete a bad Latest
@@ -386,15 +399,19 @@ export async function saveUpload(
     row_count: upload.rowCount,
     status: upload.status,
     content_hash: upload.contentHash,
+    storage_path: upload.storagePath,
     uploaded_at: upload.uploadedAt,
   })
 
   if (uploadError) {
+    await removeArchivedSheet(savedPath)
     throw new Error(
       uploadError.code === '23503'
         ? `Upload failed: account "${resolvedUser.email}" has a corrupted user id in Supabase. Run supabase/fix_users.sql in SQL Editor, then log out and sign in again.`
-        : uploadError.message.includes('content_hash') || uploadError.message.includes('status')
-          ? 'Upload columns missing. Run supabase/add_upload_status.sql in Supabase SQL Editor.'
+        : uploadError.message.includes('content_hash') ||
+            uploadError.message.includes('status') ||
+            uploadError.message.includes('storage_path')
+          ? 'Upload columns missing. Run supabase/add_sheet_storage.sql in Supabase SQL Editor.'
           : `Upload failed: ${uploadError.message}`,
     )
   }
@@ -403,7 +420,7 @@ export async function saveUpload(
     try {
       await insertEntriesInBatches(entries)
     } catch (insertError) {
-      await rollbackFailedUpload(userId, uploadId, previousLatestId)
+      await rollbackFailedUpload(userId, uploadId, previousLatestId, savedPath)
       throw insertError instanceof Error ? insertError : new Error('Insert sales_entries failed')
     }
   }
@@ -411,9 +428,14 @@ export async function saveUpload(
   return {
     upload,
     isDuplicate,
-    message: isDuplicate
-      ? 'Duplicate sheet detected. Saved to history only — your dashboard still uses the latest real sheet.'
-      : 'Latest real sheet saved and applied to your dashboard.',
+    message: [
+      isDuplicate
+        ? 'Duplicate sheet detected. Saved to history only — your dashboard still uses the latest real sheet.'
+        : 'Latest real sheet saved and applied to your dashboard.',
+      archived.warning,
+    ]
+      .filter(Boolean)
+      .join(' '),
   }
 }
 
@@ -444,6 +466,8 @@ export async function deleteUpload(
   if (uploadError) {
     throw new Error(`Could not delete upload record: ${uploadError.message}`)
   }
+
+  await removeArchivedSheet(upload.storagePath)
 
   if (!wasLatest) {
     return {
