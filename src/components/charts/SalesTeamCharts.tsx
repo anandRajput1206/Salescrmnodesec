@@ -16,6 +16,7 @@ import {
 import {
   industryPipeline,
   leadSourceDistribution,
+  partnerCompanyPipeline,
   pipelineVsRevenueMonthly,
   salesFunnel,
   stageDistribution,
@@ -56,6 +57,7 @@ export function SalesTeamCharts({ entries }: { entries: SalesEntry[] }) {
   const leadSource = leadSourceDistribution(entries)
   const stages = stageDistribution(entries)
   const industries = industryPipeline(entries)
+  const partners = partnerCompanyPipeline(entries)
   const weightedTrend = weightedPipelineTrend(entries)
 
   return (
@@ -141,6 +143,22 @@ export function SalesTeamCharts({ entries }: { entries: SalesEntry[] }) {
               <YAxis type="category" dataKey="label" width={100} tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v) => formatCurrency(Number(v))} />
               <Bar dataKey="value" fill="#0891b2" radius={[0, 6, 6, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </ChartCard>
+
+      <ChartCard title="Partner Company Pipeline" subtitle="Opportunity value by partner company">
+        {partners.length === 0 ? (
+          <Empty message="No partner company data" />
+        ) : (
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={partners} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis type="number" tickFormatter={(v) => formatCurrency(Number(v))} />
+              <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 11 }} />
+              <Tooltip formatter={(v) => formatCurrency(Number(v))} />
+              <Bar dataKey="value" name="Opportunity Value" fill="#1d4ed8" radius={[0, 6, 6, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}

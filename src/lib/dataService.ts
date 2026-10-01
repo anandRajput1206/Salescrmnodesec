@@ -51,6 +51,16 @@ function mapEntry(row: Record<string, unknown>): SalesEntry {
     industry: String(row.industry ?? ''),
     contactPerson: String(row.contact_person ?? row.contactPerson ?? ''),
     designation: String(row.designation ?? ''),
+    customerEmail: String(row.customer_email ?? row.customerEmail ?? ''),
+    customerMobile: String(row.customer_mobile ?? row.customerMobile ?? ''),
+    partnerCompany: String(row.partner_company ?? row.partnerCompany ?? row.partner_name ?? row.partnerName ?? ''),
+    partnerContactPerson: String(row.partner_contact ?? row.partnerContactPerson ?? ''),
+    partnerEmail: String(row.partner_email ?? row.partnerEmail ?? ''),
+    partnerMobile: String(row.partner_mobile ?? row.partnerMobile ?? ''),
+    oemDescription: String(row.oem_description ?? row.oemDescription ?? ''),
+    productValueInr: Number(row.product_value_inr ?? row.productValueInr ?? 0),
+    hostingValueInr: Number(row.hosting_value_inr ?? row.hostingValueInr ?? 0),
+    profServiceValueInr: Number(row.prof_service_value_inr ?? row.profServiceValueInr ?? 0),
     opportunityId: String(row.opportunity_id ?? row.opportunityId ?? ''),
     opportunityName: String(row.opportunity_name ?? row.opportunityName ?? ''),
     opportunityType: String(row.opportunity_type ?? row.opportunityType ?? ''),
@@ -139,6 +149,16 @@ function toEntries(
     industry: row.industry,
     contactPerson: row.contactPerson,
     designation: row.designation,
+    customerEmail: row.customerEmail,
+    customerMobile: row.customerMobile,
+    partnerCompany: row.partnerCompany || row.partnerName,
+    partnerContactPerson: row.partnerContactPerson,
+    partnerEmail: row.partnerEmail,
+    partnerMobile: row.partnerMobile,
+    oemDescription: row.oemDescription,
+    productValueInr: row.productValueInr,
+    hostingValueInr: row.hostingValueInr,
+    profServiceValueInr: row.profServiceValueInr,
     opportunityId: row.opportunityId,
     opportunityName: row.opportunityName,
     opportunityType: row.opportunityType,
@@ -156,7 +176,7 @@ function toEntries(
     expectedCloseQuarter: row.expectedCloseQuarter,
     revenueClosedInr: row.revenueClosedInr,
     competitor: row.competitor,
-    partnerName: row.partnerName,
+    partnerName: row.partnerCompany || row.partnerName,
     renewalUpsell: row.renewalUpsell,
     nextAction: row.nextAction,
     remarks: row.remarks,
@@ -184,6 +204,16 @@ function entryToDbRow(row: SalesEntry) {
     industry: row.industry,
     contact_person: row.contactPerson,
     designation: row.designation,
+    customer_email: row.customerEmail,
+    customer_mobile: row.customerMobile,
+    partner_company: row.partnerCompany || row.partnerName,
+    partner_contact: row.partnerContactPerson,
+    partner_email: row.partnerEmail,
+    partner_mobile: row.partnerMobile,
+    oem_description: row.oemDescription,
+    product_value_inr: row.productValueInr,
+    hosting_value_inr: row.hostingValueInr,
+    prof_service_value_inr: row.profServiceValueInr,
     opportunity_id: row.opportunityId,
     opportunity_name: row.opportunityName,
     opportunity_type: row.opportunityType,
@@ -201,7 +231,7 @@ function entryToDbRow(row: SalesEntry) {
     expected_close_quarter: row.expectedCloseQuarter,
     revenue_closed_inr: row.revenueClosedInr,
     competitor: row.competitor,
-    partner_name: row.partnerName,
+    partner_name: row.partnerCompany || row.partnerName,
     renewal_upsell: row.renewalUpsell,
     next_action: row.nextAction,
     remarks: row.remarks,
@@ -237,7 +267,17 @@ async function insertEntriesInBatches(entries: SalesEntry[]): Promise<void> {
   for (let i = 0; i < entries.length; i += INSERT_BATCH_SIZE) {
     const batch = entries.slice(i, i + INSERT_BATCH_SIZE).map(entryToDbRow)
     const { error } = await db.from('sales_entries').insert(batch)
-    if (error) throw new Error(`Insert sales_entries failed: ${error.message}`)
+    if (error) {
+      const missingColumns =
+        error.message.includes('customer_email') ||
+        error.message.includes('partner_company') ||
+        error.message.includes('oem_description')
+      throw new Error(
+        missingColumns
+          ? 'New Excel columns are missing in the database. Run supabase/add_template_fields.sql in the Supabase SQL Editor, then upload again.'
+          : `Insert sales_entries failed: ${error.message}`,
+      )
+    }
   }
 }
 

@@ -135,6 +135,16 @@ export function stageDistribution(entries: SalesEntry[]) {
   return groupSumBy(entries, (e) => e.salesStage, () => 1).sort((a, b) => b.value - a.value)
 }
 
+export function partnerCompanyPipeline(entries: SalesEntry[]) {
+  return groupSumBy(
+    entries.filter((entry) => (entry.partnerCompany || entry.partnerName).trim()),
+    (entry) => entry.partnerCompany || entry.partnerName,
+    (entry) => entry.opportunityValueInr,
+  )
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8)
+}
+
 export function industryPipeline(entries: SalesEntry[]) {
   return groupSumBy(entries, (e) => e.industry, (e) => e.opportunityValueInr)
     .sort((a, b) => b.value - a.value)

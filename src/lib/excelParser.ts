@@ -36,6 +36,12 @@ function findColumnIndex(headers: string[], aliases: string[]): number {
   return -1
 }
 
+function columnIndexes(headers: string[], alias: string): number[] {
+  return headers
+    .map((header, index) => (header === alias ? index : -1))
+    .filter((index) => index >= 0)
+}
+
 function cellText(value: unknown): string {
   if (value == null) return ''
   return String(value).trim()
@@ -92,6 +98,16 @@ function parseMatrix(matrix: unknown[][]): { rows: ParsedSalesRow[]; warnings: s
     industry: findColumnIndex(headers, ['industry']),
     contactPerson: findColumnIndex(headers, ['contact person']),
     designation: findColumnIndex(headers, ['designation']),
+    customerEmail: columnIndexes(headers, 'email id')[0] ?? -1,
+    customerMobile: columnIndexes(headers, 'mobile number')[0] ?? -1,
+    partnerCompany: findColumnIndex(headers, ['partner company', 'partner name']),
+    partnerContact: columnIndexes(headers, 'contact person')[1] ?? -1,
+    partnerEmail: columnIndexes(headers, 'email id')[1] ?? -1,
+    partnerMobile: columnIndexes(headers, 'mobile number')[1] ?? -1,
+    oemDescription: findColumnIndex(headers, ['oem description']),
+    productValue: findColumnIndex(headers, ['product value']),
+    hostingValue: findColumnIndex(headers, ['hosting value']),
+    profServiceValue: findColumnIndex(headers, ['prof service + supp', 'prof service']),
     opportunityId: findColumnIndex(headers, ['opportunity id']),
     opportunityName: findColumnIndex(headers, ['opportunity name']),
     opportunityType: findColumnIndex(headers, ['opportunity type']),
@@ -110,7 +126,6 @@ function parseMatrix(matrix: unknown[][]): { rows: ParsedSalesRow[]; warnings: s
     expectedCloseDate: findColumnIndex(headers, ['expected close date']),
     revenueClosedInr: findColumnIndex(headers, ['revenue closed (inr)', 'revenue closed']),
     competitor: findColumnIndex(headers, ['competitor']),
-    partnerName: findColumnIndex(headers, ['partner name']),
     renewalUpsell: findColumnIndex(headers, ['renewal/upsell', 'renewal']),
     nextAction: findColumnIndex(headers, ['next action']),
     remarks: findColumnIndex(headers, ['remarks', 'remark']),
@@ -166,9 +181,20 @@ function parseMatrix(matrix: unknown[][]): { rows: ParsedSalesRow[]; warnings: s
       leadSource: indexes.leadSource >= 0 ? cellText(row[indexes.leadSource]) : '',
       customerName,
       industry: indexes.industry >= 0 ? cellText(row[indexes.industry]) : '',
-      contactPerson: indexes.contactPerson >= 0 ? cellText(row[indexes.contactPerson]) : '',
-      designation: indexes.designation >= 0 ? cellText(row[indexes.designation]) : '',
-      opportunityId,
+    contactPerson: indexes.contactPerson >= 0 ? cellText(row[indexes.contactPerson]) : '',
+    designation: indexes.designation >= 0 ? cellText(row[indexes.designation]) : '',
+    customerEmail: indexes.customerEmail >= 0 ? cellText(row[indexes.customerEmail]) : '',
+    customerMobile: indexes.customerMobile >= 0 ? cellText(row[indexes.customerMobile]) : '',
+    partnerCompany: indexes.partnerCompany >= 0 ? cellText(row[indexes.partnerCompany]) : '',
+    partnerContactPerson: indexes.partnerContact >= 0 ? cellText(row[indexes.partnerContact]) : '',
+    partnerEmail: indexes.partnerEmail >= 0 ? cellText(row[indexes.partnerEmail]) : '',
+    partnerMobile: indexes.partnerMobile >= 0 ? cellText(row[indexes.partnerMobile]) : '',
+    oemDescription: indexes.oemDescription >= 0 ? cellText(row[indexes.oemDescription]) : '',
+    productValueInr: indexes.productValue >= 0 ? cellNumber(row[indexes.productValue]) : 0,
+    hostingValueInr: indexes.hostingValue >= 0 ? cellNumber(row[indexes.hostingValue]) : 0,
+    profServiceValueInr:
+      indexes.profServiceValue >= 0 ? cellNumber(row[indexes.profServiceValue]) : 0,
+    opportunityId,
       opportunityName: indexes.opportunityName >= 0 ? cellText(row[indexes.opportunityName]) : '',
       opportunityType: indexes.opportunityType >= 0 ? cellText(row[indexes.opportunityType]) : '',
       opportunityValueInr,
@@ -188,7 +214,7 @@ function parseMatrix(matrix: unknown[][]): { rows: ParsedSalesRow[]; warnings: s
       revenueClosedInr:
         indexes.revenueClosedInr >= 0 ? cellNumber(row[indexes.revenueClosedInr]) : 0,
       competitor: indexes.competitor >= 0 ? cellText(row[indexes.competitor]) : '',
-      partnerName: indexes.partnerName >= 0 ? cellText(row[indexes.partnerName]) : '',
+      partnerName: indexes.partnerCompany >= 0 ? cellText(row[indexes.partnerCompany]) : '',
       renewalUpsell: indexes.renewalUpsell >= 0 ? cellText(row[indexes.renewalUpsell]) : '',
       nextAction: indexes.nextAction >= 0 ? cellText(row[indexes.nextAction]) : '',
       remarks: indexes.remarks >= 0 ? cellText(row[indexes.remarks]) : '',

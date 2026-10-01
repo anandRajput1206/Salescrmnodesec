@@ -58,6 +58,16 @@ export interface SalesEntry {
   industry: string
   contactPerson: string
   designation: string
+  customerEmail: string
+  customerMobile: string
+  partnerCompany: string
+  partnerContactPerson: string
+  partnerEmail: string
+  partnerMobile: string
+  oemDescription: string
+  productValueInr: number
+  hostingValueInr: number
+  profServiceValueInr: number
   opportunityId: string
   opportunityName: string
   opportunityType: string
@@ -96,6 +106,16 @@ export interface ParsedSalesRow {
   industry: string
   contactPerson: string
   designation: string
+  customerEmail: string
+  customerMobile: string
+  partnerCompany: string
+  partnerContactPerson: string
+  partnerEmail: string
+  partnerMobile: string
+  oemDescription: string
+  productValueInr: number
+  hostingValueInr: number
+  profServiceValueInr: number
   opportunityId: string
   opportunityName: string
   opportunityType: string
